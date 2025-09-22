@@ -1,0 +1,42 @@
+{
+  "name": "Sample \u2014 Self-healing tire compound (Diels\u2013Alder)",
+  "description": "Exploring DA-based elastomer for passenger car tires.",
+  "trl": 4,
+  "scoping_notes": "Pilot mixing line available; aim to compare vs. NBR baseline.",
+  "lifecycle_stages": [
+    "Raw material extraction",
+    "Material synthesis / processing",
+    "Component manufacturing",
+    "Product assembly",
+    "Distribution & logistics",
+    "Use phase",
+    "End-of-life (reuse/recycling/disposal)"
+  ],
+  "lifecycle_changed": {
+    "Raw material extraction": true,
+    "Material synthesis / processing": true,
+    "Component manufacturing": true,
+    "Product assembly": false,
+    "Distribution & logistics": false,
+    "Use phase": true,
+    "End-of-life (reuse/recycling/disposal)": true
+  },
+  "selected_factors": {
+    "Environmental": [
+      "Climate change",
+      "Resource use, fossils",
+      "Land Use"
+    ],
+    "Social": [
+      "Health and safety (workers)",
+      "Public commitment to sustainability issues",
+      "End of life responsibility"
+    ],
+    "Economic": [
+      "Complexity of production process",
+      "Raw material cost",
+      "Cost of final product"
+    ]
+  },
+  "grid": {}
+}
