@@ -665,73 +665,7 @@ elif step.startswith("4"):
 # -------------------------------
 # Step 5: Results & plots
 # -------------------------------
-elif step.startswith("5"):
-    st.subheader("Step 5 — Results & plots")
 
-    all9 = project.selected_factors.get("Environmental", []) + \
-           project.selected_factors.get("Social", []) + \
-           project.selected_factors.get("Economic", [])
-    if len(all9) != 9:
-        st.error("Complete Steps 3–4 first.")
-        st.stop()
-
-    project.ensure_grid(all9)
-
-    # Tables
-    avg_stage = project.average_by_stage()
-    avg_factor = project.average_by_factor()
-    overall = project.overall_score()
-
-    left, right = st.columns(2)
-    with left:
-        st.metric("Overall score", overall if overall is not None else "n/a", help="Average of stage means (1=Much Better, 3=Equal, 5=Much Worse).")
-        stage_df = pd.DataFrame({"Lifecycle stage": list(avg_stage.keys()), "Average score": [round(v,2) for v in avg_stage.values()]})
-        st.dataframe(stage_df, use_container_width=True)
-    with right:
-        factor_df = pd.DataFrame({"Factor": list(avg_factor.keys()), "Average score": [round(v,2) for v in avg_factor.values()]})
-        st.dataframe(factor_df, use_container_width=True)
-
-    # Plots
-    st.markdown("#### 📊 Average by lifecycle stage")
-    fig1 = px.bar(stage_df, x="Lifecycle stage", y="Average score", text="Average score", range_y=[1,5])
-    fig1.update_traces(textposition='outside')
-    fig1.update_layout(yaxis_title="Score (1=Better … 5=Worse)", xaxis_title="Lifecycle stage", margin=dict(t=10,b=10))
-    st.plotly_chart(fig1, use_container_width=True)
-
-    st.markdown("#### 📈 Average by factor")
-    fig2 = px.bar(factor_df, x="Factor", y="Average score", text="Average score", range_y=[1,5])
-    fig2.update_traces(textposition='outside')
-    fig2.update_layout(yaxis_title="Score (1=Better … 5=Worse)", xaxis_title="Factor", margin=dict(t=10,b=10))
-    st.plotly_chart(fig2, use_container_width=True)
-
-    # Worst performing stage
-    if avg_stage:
-        worst_stage, worst_val = max(avg_stage.items(), key=lambda kv: kv[1])
-        st.markdown(f"### 🚩 Worst performing stage: **{worst_stage}** (avg {worst_val:.2f} — {interp_label(worst_val)})")
-        # Show its factor breakdown
-        breakdown = project.grid.get(worst_stage, {})
-        if breakdown:
-            wdf = pd.DataFrame({
-                "Factor":[f for f in breakdown.keys()],
-                "Score":[breakdown[f].score for f in breakdown.keys()],
-                "Justification":[breakdown[f].note for f in breakdown.keys()],
-            }).sort_values("Score", ascending=False)
-            st.dataframe(wdf, use_container_width=True)
-
-    # Export results
-    export = {
-        "project": project.name,
-        "description": project.description,
-        "trl": project.trl,
-        "lifecycle_stages": project.lifecycle_stages,
-        "lifecycle_changed": project.lifecycle_changed,
-        "selected_factors": project.selected_factors,
-        "grid": {stage:{f: asdict(fs) for f, fs in fdict.items()} for stage, fdict in project.grid.items()},
-        "averages": {"by_stage": avg_stage, "by_factor": avg_factor, "overall": overall},
-    }
-    st.download_button("💾 Download results JSON", data=json.dumps(export, indent=2), file_name=f"{project.name.replace(' ','_')}_results.json", mime="application/json")
-
-# -------- Markdown report --------
 # -------- Markdown report --------
 elif step.startswith("5"):
     st.subheader("Step 5 — Results & plots")
@@ -763,28 +697,101 @@ elif step.startswith("5"):
         )
         stage_df = pd.DataFrame({
             "Lifecycle stage": list(avg_stage.keys()),
-            "Average score": [round(v,2) for v in avg_stage.values()]
+            "Average score": [round(v,1) for v in avg_stage.values()]
         })
         st.dataframe(stage_df, use_container_width=True)
     with right:
         factor_df = pd.DataFrame({
             "Factor": list(avg_factor.keys()),
-            "Average score": [round(v,2) for v in avg_factor.values()]
+            "Average score": [round(v,1) for v in avg_factor.values()]
         })
         st.dataframe(factor_df, use_container_width=True)
 
-    # Plots
+    def status_label(val: float) -> str:
+        return "≤3 (good)" if val <= 3 else ">3 (attention)"
+
+    # ---- Build DataFrames ----
+    stage_df = pd.DataFrame({
+        "Lifecycle stage": list(avg_stage.keys()),
+        "Average score": [round(v, 2) for v in avg_stage.values()],
+    })
+    factor_df = pd.DataFrame({
+        "Factor": list(avg_factor.keys()),
+        "Average score": [round(v, 2) for v in avg_factor.values()],
+    })
+
+    # ---- Add status colors for both charts ----
+    stage_df["Status"]  = stage_df["Average score"].apply(status_label)
+    factor_df["Status"] = factor_df["Average score"].apply(status_label)
+
+    # ---- Map factors to their domain for the factor chart ----
+    # reverse map from your selected_factors
+    domain_map = {}
+    for dom in ("Environmental", "Social", "Economic"):
+        for f in project.selected_factors.get(dom, []):
+            domain_map[f] = dom
+    factor_df["Domain"] = factor_df["Factor"].map(domain_map).fillna("Unspecified")
+
+    # ---- Color palette (status) ----
+    STATUS_COLORS = {
+        "≤3 (good)": "#2ca02c",      # green
+        ">3 (attention)": "#8b0000", # dark red
+    }
+
+    # ==========================
+    # 📊 Average by lifecycle stage
+    # ==========================
     st.markdown("#### 📊 Average by lifecycle stage")
-    fig1 = px.bar(stage_df, x="Lifecycle stage", y="Average score", text="Average score", range_y=[1,5])
-    fig1.update_traces(textposition='outside')
-    fig1.update_layout(yaxis_title="Score (1=Better … 5=Worse)", xaxis_title="Lifecycle stage", margin=dict(t=10,b=10))
+    fig1 = px.bar(
+        stage_df,
+        x="Lifecycle stage",
+        y="Average score",
+        text="Average score",
+        range_y=[1, 5],
+        color="Status",
+        color_discrete_map=STATUS_COLORS,
+    )
+    fig1.update_traces(textposition="outside")
+    fig1.update_layout(
+        yaxis_title="Score (1=Better … 5=Worse)",
+        xaxis_title="Lifecycle stage",
+        margin=dict(t=10, b=10),
+        legend_title_text="Status",
+    )
     st.plotly_chart(fig1, use_container_width=True)
 
+    # ==========================
+    # 📈 Average by factor
+    # ==========================
+    # Use color for Status (green/red) and pattern for Domain (Env/Soc/Eco)
     st.markdown("#### 📈 Average by factor")
-    fig2 = px.bar(factor_df, x="Factor", y="Average score", text="Average score", range_y=[1,5])
-    fig2.update_traces(textposition='outside')
-    fig2.update_layout(yaxis_title="Score (1=Better … 5=Worse)", xaxis_title="Factor", margin=dict(t=10,b=10))
+    PATTERN_MAP = {
+        "Environmental": "",
+        "Social": "/",
+        "Economic": ".",
+        "Unspecified": ".",
+    }
+    fig2 = px.bar(
+        factor_df,
+        x="Factor",
+        y="Average score",
+        text="Average score",
+        range_y=[1, 5],
+        color="Status",
+        color_discrete_map=STATUS_COLORS,
+        pattern_shape="Domain",
+        pattern_shape_map=PATTERN_MAP,
+        category_orders={"Domain": ["Environmental", "Social", "Economic", "Unspecified"]},
+    )
+    fig2.update_traces(textposition="outside")
+    fig2.update_layout(
+        yaxis_title="Score (1=Better … 5=Worse)",
+        xaxis_title="Factor",
+        margin=dict(t=10, b=10),
+        legend_title_text="",
+    )
     st.plotly_chart(fig2, use_container_width=True)
+
 
     # Worst performing stage
     if avg_stage:
@@ -816,6 +823,7 @@ elif step.startswith("5"):
         file_name=f"{project.name.replace(' ','_')}_results.json",
         mime="application/json"
     )
+
 
 
     def report_md(
@@ -868,14 +876,24 @@ elif step.startswith("5"):
             lines.append("")
         lines.append("_Score guide — 1: Much Better • 2: Better • 3: Equal • 4: Worse • 5: Much Worse._")
         return "\n".join(lines)
+    
+    
 
     # --- Report button lives here, AFTER overall/avg_* are defined ---
     st.download_button(
         "📄 Download Markdown report",
-        data=report_md(project, overall, avg_stage, avg_factor),
+        data=report_md(
+            project,
+            overall,
+            avg_stage,
+            avg_factor,
+            st.session_state.get("functional_unit", ""),
+            st.session_state.get("core_function", ""),
+        ),
         file_name=f"{project.name.replace(' ','_')}_SEED_report.md",
         mime="text/markdown",
     )
+
 
 
 
