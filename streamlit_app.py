@@ -512,7 +512,7 @@ elif step.startswith("2"):
         # Add a new stage within this subtitle
         add_cols = st.columns([6, 2, 2])
         add_name = add_cols[0].text_input(f"➕ Add stage in {title}", key=f"{safe}_add_name")
-        add_change = add_cols[1].checkbox("Will change?", key=f"{safe}_add_chg")
+        add_change = add_cols[1].checkbox("Will change compared to previous technology?", key=f"{safe}_add_chg")
         if add_cols[2].button("Add stage", key=f"{safe}_add_btn"):
             if not add_name.strip():
                 st.warning("Please enter a stage name.")
