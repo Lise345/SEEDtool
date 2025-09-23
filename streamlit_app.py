@@ -483,7 +483,7 @@ elif step.startswith("2"):
             new_name = cols[0].text_input("Stage name", value=name, key=f"{safe}_name_{i}")
             # will change?
             will_change = project.lifecycle_changed.get(name, False)
-            new_change = cols[1].checkbox("Will change?", value=will_change, key=f"{safe}_chg_{i}")
+            new_change = cols[1].checkbox("Will change compared to previous technology?", value=will_change, key=f"{safe}_chg_{i}")
 
             # move up
             if cols[2].button("⬆️", key=f"{safe}_up_{i}") and i > 0:
@@ -511,7 +511,7 @@ elif step.startswith("2"):
 
         # Add a new stage within this subtitle
         add_cols = st.columns([6, 2, 2])
-        add_name = add_cols[0].text_input(f"➕ Add stage in {title}", key=f"{safe}_add_name")
+        #add_name = add_cols[0].text_input(f"➕ Add stage in {title}", key=f"{safe}_add_name")
         add_change = add_cols[1].checkbox("Will change?", key=f"{safe}_add_chg")
         if add_cols[2].button("Add stage", key=f"{safe}_add_btn"):
             if not add_name.strip():
