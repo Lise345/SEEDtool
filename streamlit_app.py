@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 
 # streamlit_app.py
 import json
@@ -5,9 +7,13 @@ from dataclasses import dataclass, field, asdict
 from typing import List, Dict, Optional, Tuple
 import statistics
 
+
+import statistics
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import pathlib
 
 APP_TITLE = "SEED — Sustainability Evaluation for Early-stage Decisions"
 APP_TAGLINE = "Project-based scoping for new materials & products"
@@ -84,11 +90,11 @@ ECONOMIC_FACTORS = [
 ]
 
 INTERPRETATION = [
-    {"label":"Much Better", "upper":1, "explanation":"Leads to a measurable improvement"},
-    {"label":"Better", "upper":2, "explanation":"Might lead to a measurable improvement"},
+    {"label":"Measurably Worse", "upper":1, "explanation":"Leads to a measurable worsening"},
+    {"label":"Possibly Worse", "upper":2, "explanation":"Might lead to a measurable worsening"},
     {"label":"Equal", "upper":3, "explanation":"No measurable change"},
-    {"label":"Worse", "upper":4, "explanation":"Might lead to a measurable worsening"},
-    {"label":"Much Worse", "upper":5, "explanation":"Leads to a measurable worsening"},
+    {"label":"Possibly Better", "upper":4, "explanation":"Might lead to a measurable improvement"},
+    {"label":"Measurably Better", "upper":5, "explanation":"Leads to a measurable improvement"},
 ]
 
 DEFAULT_LIFE_CYCLE = [
@@ -116,71 +122,85 @@ ENV_FACTOR_META = {
         "indicator": "Accumulated Exceedance (AE)", "category": "ACIDIFICATION",
         "method": "EF3.1", "version": "2017-01.04.000",
         "uuid": "b5c611c6-def3-11e6-bf01-fe55135034f3",
+        "explanation": "Atmospheric chemicals redeposited in ecosystems.",
     },
     "Climate change": {
         "indicator": "Radiative forcing as GWP100", "category": "CLIMATE_CHANGE",
         "method": "EF3.1", "version": "2022-01.00.000",
         "uuid": "6209b35f-9447-40b5-b68c-a1099e3674a0",
+        "explanation": "Modification of climate affecting global ecosystem.",
     },
     "Ecotoxicity, freshwater": {
         "indicator": "CTUe", "category": "AQUATIC_ECO_TOXICITY",
         "method": "EF3.1", "version": "2022-01.00.000",
         "uuid": "05316e7a-b254-4bea-9cf0-6bf33eb5c630",
+        "explanation": "Toxic effects on freshwater organisms.",
     },
     "Eutrophication, marine": {
         "indicator": "Fraction of N to marine", "category": "AQUATIC_EUTROPHICATION",
         "method": "EF3.1", "version": "2017-02.00.010",
         "uuid": "b5c619fa-def3-11e6-bf01-fe55135034f3",
+        "explanation": "Excess nutrients leading to dead zones.",
     },
     "Eutrophication, freshwater": {
         "indicator": "Fraction of P to freshwater", "category": "AQUATIC_EUTROPHICATION",
         "method": "EF3.1", "version": "2017-01.00.010",
         "uuid": "b53ec18f-7377-4ad3-86eb-cc3f4f276b2b",
+        "explanation": "Excess nutrients in rivers & lakes.", 
     },
     "Eutrophication, terrestrial": {
         "indicator": "Accumulated Exceedance (AE)", "category": "TERRESTRIAL_EUTROPHICATION",
         "method": "EF3.1", "version": "2017-01.02.009",
         "uuid": "b5c614d2-def3-11e6-bf01-fe55135034f3",
+        "explanation": "Excess enrichment leading to imbalance.",
     },
     "Ionizing radiation, effect on human health": {
         "indicator": "Human exposure efficiency rel. U235", "category": "IONIZING_RADIATION",
         "method": "EF3.1", "version": "2017-01.00.011",
         "uuid": "b5c632be-def3-11e6-bf01-fe55135034f3",
+        "explanation": "Effects of radioactivity.",
     },
     "Land Use": {
         "indicator": "Soil quality index", "category": "LAND_USE",
         "method": "EF3.1", "version": "2017-01.00.010",
         "uuid": "b2ad6890-c78d-11e6-9d9d-cec0c932ce01",
+        "explanation": "Impact on land degradation & biodiversity.",
     },
     "Ozone depletion": {
         "indicator": "ODP", "category": "OZONE_DEPLETION",
         "method": "EF3.1", "version": "2017-02.00.012 (until 2040)",
         "uuid": "b5c629d6-def3-11e6-bf01-fe55135034f3",
+        "explanation": "Impoverishment of protective ozone layer.",
     },
     "Particulate matters": {
         "indicator": "Impact on human health", "category": "RESPIRATORY_INORGANICS",
         "method": "EF3.1", "version": "2017-02.00.011",
         "uuid": "b5c602c6-def3-11e6-bf01-fe55135034f3",
+        "explanation": "PM effects on human health.", 
     },
     "Photochemical ozone formation, effect on human health": {
         "indicator": "Tropospheric ozone conc. increase", "category": "PHOTOCHEMICAL_OZONE_CREATION",
         "method": "EF3.1", "version": "2017-02.01.000",
         "uuid": "b5c610fe-def3-11e6-bf01-fe55135034f3",
+        "explanation": "Air quality deterioration (smog).",
     },
     "Resource use, fossils": {
         "indicator": "ADP-fossil", "category": "ABIOTIC_RESOURCE_DEPLETION",
         "method": "EF3.1", "version": "2017-01.00.010",
         "uuid": "b2ad6110-c78d-11e6-9d9d-cec0c932ce01",
+        "explanation": "Depletion of non-renewable energy resources.",
     },
     "Resource use, minerals and metals": {
         "indicator": "ADP ultimate reserve", "category": "ABIOTIC_RESOURCE_DEPLETION",
         "method": "EF3.1", "version": "2017-01.00.010",
         "uuid": "b2ad6494-c78d-11e6-9d9d-cec0c932ce01",
+        "explanation": "Depletion of mineral resources.",
     },
     "Water use": {
         "indicator": "Deprivation-weighted water consumption", "category": "OTHER",
         "method": "EF3.1", "version": "2017-03.00.014",
         "uuid": "b2ad66ce-c78d-11e6-9d9d-cec0c932ce01",
+        "explanation": "Consumption & depletion, scarcity-adjusted.",
     },
 }
 
@@ -215,8 +235,6 @@ ECON_FACTOR_META = {
     "Chance on subsidies": "Likelihood of public funding/incentives.",
 }
 
-
-
 # -------------------------------
 # Data model
 # -------------------------------
@@ -231,46 +249,261 @@ class Project:
     description: str = ""
     trl: int = 4
     scoping_notes: str = ""
-    lifecycle_stages: List[str] = field(default_factory=lambda: DEFAULT_LIFE_CYCLE.copy())
-    lifecycle_changed: Dict[str, bool] = field(default_factory=dict)  # which stages change due to new material
-    selected_factors: Dict[str, List[str]] = field(default_factory=dict)  # keys: "Environmental","Social","Economic"
+    lifecycle_stages: List[str] = field(default_factory=list)  # start empty; you manage via UI
+    lifecycle_changed: Dict[str, bool] = field(default_factory=dict)
+    selected_factors: Dict[str, List[str]] = field(default_factory=dict)  # keys: Environmental/Social/Economic
     grid: Dict[str, Dict[str, FactorScore]] = field(default_factory=dict)  # stage -> factor -> FactorScore
+    core_function: str = ""
+    functional_unit: str = ""
 
-    def ensure_grid(self, all_factors: List[str]):
-        # Ensure every stage and selected factor pair exists
+    # --- restore this! ---
+    def ensure_grid(self, all_factors: List[str]) -> None:
+        """Make sure every (stage, factor) exists in the grid with a FactorScore."""
         for stage in self.lifecycle_stages:
-            self.grid.setdefault(stage, {})
+            stage_map = self.grid.setdefault(stage, {})
+            # keep only relevant factors for this stage (optional: clean stale)
             for f in all_factors:
-                if f not in self.grid[stage]:
-                    self.grid[stage][f] = FactorScore()
+                if f not in stage_map:
+                    stage_map[f] = FactorScore()
+            # optionally drop factors no longer selected:
+            for f in list(stage_map.keys()):
+                if f not in all_factors:
+                    del stage_map[f]
 
     def average_by_stage(self) -> Dict[str, float]:
-        out = {}
+        out: Dict[str, float] = {}
         for stage, facs in self.grid.items():
-            if facs:
-                out[stage] = statistics.mean(fs.score for fs in facs.values())
-            else:
-                out[stage] = float("nan")
+            vals = [fs.score for fs in facs.values()] if facs else []
+            out[stage] = statistics.mean(vals) if vals else float("nan")
         return out
 
     def average_by_factor(self) -> Dict[str, float]:
-        # factor -> mean across stages
-        factor_sums: Dict[str, List[int]] = {}
-        for stage, facs in self.grid.items():
+        acc: Dict[str, List[int]] = {}
+        for facs in self.grid.values():
             for f, fs in facs.items():
-                factor_sums.setdefault(f, []).append(fs.score)
-        return {f: statistics.mean(vals) for f, vals in factor_sums.items()} if factor_sums else {}
+                acc.setdefault(f, []).append(fs.score)
+        return {f: statistics.mean(v) for f, v in acc.items()} if acc else {}
 
     def overall_score(self) -> Optional[float]:
         avs = self.average_by_stage()
         vals = [v for v in avs.values() if isinstance(v, (int, float))]
         return round(statistics.mean(vals), 2) if vals else None
 
+    # keep this to fix imports
+    def coerce_grid(self) -> None:
+        """Turn nested dicts (from JSON) back into FactorScore instances."""
+        for stage, fdict in self.grid.items():
+            for fname, fs in list(fdict.items()):
+                if isinstance(fs, dict):
+                    self.grid[stage][fname] = FactorScore(**fs)
+
 # -------------------------------
 # Helpers
 # -------------------------------
+
+# --- Landing page renderer ---
+import plotly.express as px
+import pandas as pd
+import random
+import re
+
+def _new_project_name(base="New SEED Project"):
+    # create a unique default project name if the user clicks the CTA
+    existing = set(st.session_state.get("projects", {}).keys())
+    if base not in existing:
+        return base
+    i = 2
+    while f"{base} {i}" in existing:
+        i += 1
+    return f"{base} {i}"
+
+def _design_paradox_fig():
+    # Simple illustration of the sustainable design paradox:
+    # knowledge ↑ over time, design freedom ↓ over time.
+    x = list(range(0, 101, 5))
+    knowledge = [1 + 99*(t/100)**1.6 for t in x]      # rising curve
+    freedom   = [100 - 90*(t/100)**0.7 for t in x]    # falling curve
+    df = pd.DataFrame({
+        "Development progress (%)": x,
+        "Knowledge about impacts": knowledge,
+        "Design freedom": freedom
+    })
+    fig = px.line(
+        df,
+        x="Development progress (%)",
+        y=["Knowledge about impacts", "Design freedom"],
+        markers=True
+    )
+    fig.add_vrect(x0=0, x1=25, fillcolor="LightGreen", opacity=0.25, line_width=0,
+                  annotation_text="Early stage leverage", annotation_position="top left")
+    fig.update_layout(
+        margin=dict(t=10, r=10, b=10, l=10),
+        legend_title="",
+        yaxis_title="Relative level",
+    )
+    return fig
+
+def render_landing():
+    # light CSS for badges/cards
+    st.markdown("""
+    <style>
+      .pill {display:inline-block;padding:.25rem .6rem;margin-right:.4rem;margin-bottom:.4rem;
+             border-radius:999px;font-weight:600;font-size:.80rem;border:1px solid #e2e8f0;background:#fff;}
+      .card {border:1px solid #e2e8f0;border-radius:14px;padding:14px;background:#fff;}
+      .muted{color:#667085}
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("<div class='hero'>", unsafe_allow_html=True)
+    st.markdown(
+        "<div class='muted'>A qualitative, actor-driven scoping tool for low-TRL projects — "
+        "to reason about sustainability trade-offs before a full LCA is feasible.</div>",
+        unsafe_allow_html=True,
+    )
+
+    # Pills
+    st.markdown(
+        "<div class='pill'>Low TRL focus</div>"
+        "<div class='pill'>Qualitative assessment</div>"
+        "<div class='pill'>Trade-offs & hot-spots</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    c1, c2 = st.columns([3, 2], gap="large")
+
+    with c1:
+        st.markdown("#### What this helps you do")
+        st.markdown(
+            "- **Engage the right actors early** (Step 1) and **co-scope** function & system boundaries (Step 2).\n"
+            "- **Select key factors** across Environmental, Social, Economic (Step 3) — with definitions.\n"
+            "- **Score transparently** across life-cycle stages (Step 4) and **surface hot-spots** instantly (Step 5).\n"
+            "- Use results to **justify claims** in proposals when a full **LCA is premature**."
+        )
+        st.markdown("#### Interpreting results")
+        st.markdown(
+            "- Sustainability is a **balance**: improvements in one factor may worsen another.\n"
+            "- Plots are **centered at a baseline of 3 (Equal)**, so left = worse, right = better.\n"
+            "- We highlight **worst-performing stages** early so you can iterate design choices."
+        )
+        st.markdown("#### Scope & limits")
+        st.markdown(
+            "- Qualitative, early-stage scoping — **not** a substitute for LCA/S-LCA.\n"
+            "- Best for **TRL 1–5** where uncertainty is high but design freedom remains."
+        )
+
+    with c2:
+        st.markdown("#### Sustainable design paradox")
+        st.caption("We know most about impacts when it’s hardest to change the design — act early.")
+        st.plotly_chart(_design_paradox_fig(), use_container_width=True)
+
+    # Three mini cards
+    st.markdown("#### How it works")
+    cc1, cc2, cc3 = st.columns(3)
+    with cc1:
+        st.markdown("##### 1) TRL & actors")
+        st.info("Identify TRL and **who to involve** (devs, experts, industry, etc.).")
+    with cc2:
+        st.markdown("##### 2) Scoping & lifecycle")
+        st.info("Define **core function** and **functional unit**; map a **lean lifecycle**.")
+    with cc3:
+        st.markdown("##### 3–5) Factors → Scores → Hot-spots")
+        st.info("Pick 3 factors per pillar, score 1–5 vs baseline, and review **worst stages**.")
+
+    st.markdown("---")
+    cta1, cta2 = st.columns([1, 3])
+    with cta1:
+        if st.button("➕ Start a new SEED project", use_container_width=True, type="primary"):
+            name = _new_project_name()
+            st.session_state.projects[name] = Project(name=name, description="")
+            st.session_state.active_project = name
+            st.success(f"Created project “{name}”. Use the sidebar to proceed.")
+            st.rerun()
+    with cta2:
+        st.caption("You can also import a project JSON in the sidebar.")
+
+    # --- Example project download ---
+    example_path = pathlib.Path("recyclable_windmill_blades.json")
+    if example_path.exists():
+        with open(example_path, "rb") as f:
+            st.download_button(
+                "📥 Download example project: Recyclable windmill blades",
+                data=f.read(),
+                file_name="recyclable_windmill_blades.json",
+                mime="application/json",
+            )
+    else:
+        st.info("Place `recyclable_windmill_blades.json` in the app folder to enable the example project download.")
+
+def factor_breakdown_plot(stage_name: str, breakdown: Dict[str, FactorScore]):
+    # dict -> DataFrame
+    df = pd.DataFrame(
+        {"Factor": list(breakdown.keys()),
+         "Average score": [float(breakdown[f].score) for f in breakdown.keys()]}
+    )
+    plot_df = to_plot_df(df, "Factor", "Average score").rename(columns={"Factor": "Category"})
+    title = f"Factor breakdown — {stage_name}"
+    return horizontal_delta_bar(plot_df, title)
+
 def factor_names(factors):
     return [f["name"] for f in factors]
+
+def score_band_color(score: float) -> str:
+    if score > 3.5:
+        return "#2e7d32"  # green
+    if score < 2.5:
+        return "#c62828"  # red
+    return "#f57c00"      # orange
+
+def to_plot_df(df: pd.DataFrame, cat_col: str, val_col: str) -> pd.DataFrame:
+    out = df.copy()
+    out["Score"] = out[val_col].astype(float)
+    out["Delta"] = out["Score"] - 3.0
+    out["Color"] = out["Score"].apply(score_band_color)
+    # label shown at bar end (original score, not delta)
+    out["Label"] = out["Score"].round(1)
+    return out
+
+def horizontal_delta_bar(plot_df: pd.DataFrame, title: str):
+    fig = px.bar(
+        plot_df.sort_values("Delta"),         # sorts so leftmost (worse) on top for readability
+        x="Delta",
+        y="Category",
+        text="Label",
+        color="Color",
+        orientation="h",
+        color_discrete_map="identity",
+    )
+    # Axis: show original score ticks (1..5) mapped onto delta (-2..2)
+    fig.update_xaxes(
+        range=[-2, 2],
+        tickmode="array",
+        tickvals=[-2, -1, 0, 1, 2],
+        ticktext=["1", "2", "3", "4", "5"],
+        title="Score (baseline = 3)"
+    )
+    fig.update_yaxes(title="")
+    # Styling
+    fig.update_traces(
+        textposition="outside",
+        hovertemplate="<b>%{y}</b><br>Score: %{customdata[0]:.2f}<extra></extra>",
+        customdata=plot_df[["Score"]].values,
+        marker_line_color="rgba(0,0,0,0.15)",
+        marker_line_width=1,
+    )
+    # Baseline at 0 (i.e., score 3)
+    fig.add_vline(x=0, line_dash="dash", line_color="#666", opacity=0.7)
+    fig.add_annotation(
+        x=0, y=1.02, xref="x", yref="paper",
+        text="Baseline (= 3)",
+        showarrow=False, font=dict(size=11, color="#666")
+    )
+    fig.update_layout(
+        title=title,
+        margin=dict(t=30, r=10, b=20, l=10),
+        legend=dict(title="", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    )
+    return fig
 
 def get_selected_factors(factors, override_selected: Optional[List[str]] = None) -> List[str]:
     if override_selected is not None:
@@ -334,9 +567,10 @@ with st.sidebar:
         try:
             data = json.load(uploaded)
             proj = Project(**data)
+            proj.coerce_grid()  # <-- important after JSON load
             st.session_state.projects[proj.name] = proj
             st.session_state.active_project = proj.name
-            st.success(f"Imported “{proj.name}”.")
+
         except Exception as e:
             st.error(f"Could not import: {e}")
 
@@ -355,8 +589,9 @@ st.title(f"🌿 {APP_TITLE}")
 st.caption(APP_TAGLINE)
 
 if st.session_state.active_project is None:
-    st.info("Create or open a project from the sidebar to begin.")
+    render_landing()
     st.stop()
+
 
 project: Project = st.session_state.projects[st.session_state.active_project]
 
@@ -364,13 +599,11 @@ project: Project = st.session_state.projects[st.session_state.active_project]
 if "sections" not in st.session_state:
     st.session_state.sections = {title: [] for title in SECTION_TITLES}
 
-# --- NEW: scoping fields ---
-if "core_function" not in st.session_state:
-    st.session_state.core_function = ""
-if "functional_unit" not in st.session_state:
-    st.session_state.functional_unit = ""
-if "scoping_done" not in st.session_state:
-    st.session_state.scoping_done = False
+# ✅ Compute scoping status on every run from the active project
+def scoping_is_done(p: Project) -> bool:
+    return bool(getattr(p, "functional_unit", "").strip()) and len(p.lifecycle_stages) > 0
+
+st.session_state.scoping_done = scoping_is_done(project)
 
 
 WORKFLOW_STEPS = [
@@ -452,18 +685,34 @@ elif step.startswith("2"):
         "Prefer function-over-time, e.g. “A tire enabling **100,000 km** of travel with reduced maintenance.”"
     )
 
-    # Use only keys; session_state will store the values
-    st.text_area(
+    PDF_PATH = pathlib.Path("scopingexercise.pdf")  # adjust if it's in a subfolder, e.g. Path("assets/scopingexercise.pdf")
+    try:
+        if PDF_PATH.exists():
+            with PDF_PATH.open("rb") as f:
+                st.download_button(
+                    "📥 Download help for the scoping exercise (PDF)",
+                    data=f.read(),
+                    file_name="scopingexercise.pdf",
+                    mime="application/pdf",
+                )
+        else:
+            st.info(f"Place **{PDF_PATH}** next to your app to enable the download button.")
+    except Exception as e:
+        st.warning(f"Couldn’t load the PDF: {e}")
+
+    project.core_function = st.text_area(
         "Core function (one sentence)",
-        key="core_function",
+        value=project.core_function,
         height=80,
         placeholder="e.g., The main function of the self-healing tire is to enable 100,000 km of safe travel with reduced maintenance.",
     )
-    st.text_input(
+    project.functional_unit = st.text_input(
         "Functional unit (required)",
-        key="functional_unit",
+        value=project.functional_unit,
         placeholder="e.g., A tire enabling 100,000 km of driving",
     )
+
+
 
     # ---------- Helpers ----------
     MAX_TOTAL = 7
@@ -483,7 +732,7 @@ elif step.startswith("2"):
             new_name = cols[0].text_input("Stage name", value=name, key=f"{safe}_name_{i}")
             # will change?
             will_change = project.lifecycle_changed.get(name, False)
-            new_change = cols[1].checkbox("Will change compared to previous technology?", value=will_change, key=f"{safe}_chg_{i}")
+            new_change = cols[1].checkbox("Will change?", value=will_change, key=f"{safe}_chg_{i}")
 
             # move up
             if cols[2].button("⬆️", key=f"{safe}_up_{i}") and i > 0:
@@ -512,7 +761,7 @@ elif step.startswith("2"):
         # Add a new stage within this subtitle
         add_cols = st.columns([6, 2, 2])
         add_name = add_cols[0].text_input(f"➕ Add stage in {title}", key=f"{safe}_add_name")
-        add_change = add_cols[1].checkbox("Will change compared to previous technology?", key=f"{safe}_add_chg")
+        add_change = add_cols[1].checkbox("Will change?", key=f"{safe}_add_chg")
         if add_cols[2].button("Add stage", key=f"{safe}_add_btn"):
             if not add_name.strip():
                 st.warning("Please enter a stage name.")
@@ -549,20 +798,18 @@ elif step.startswith("2"):
             key="scoping_notes",
         )
 
-    # ---------- Gate progression automatically ----------
-    fn_unit_ok = bool(st.session_state.get("functional_unit", "").strip())
-    at_least_one_stage = len(project.lifecycle_stages) > 0
-    st.session_state.scoping_done = fn_unit_ok and at_least_one_stage
-
+    # Gate / status (no need to set a flag here; we already compute it globally)
     if st.session_state.scoping_done:
         st.success("Scoping complete ✅  (Functional unit provided and at least one stage added.)")
     else:
         missing = []
-        if not fn_unit_ok:
+        if not project.functional_unit.strip():
             missing.append("functional unit")
-        if not at_least_one_stage:
+        if not project.lifecycle_stages:
             missing.append("≥ 1 stage")
         st.warning("Please provide: " + " and ".join(missing) + " before moving to Step 3.")
+
+
 
 # -------------------------------
 # Step 3: Select factors
@@ -588,7 +835,8 @@ elif step.startswith("3"):
                         f"**Indicator:** {meta['indicator']}  \n"
                         f"**Category:** {meta['category']}  \n"
                         f"**Method:** {meta['method']} ({meta['version']})  \n"
-                        f"**UUID:** `{meta['uuid']}`"
+                        f"**UUID:** `{meta['uuid']}` \n"
+                        f"**Explanation:** {meta['explanation']} \n"
                     )
 
         with tab_soc:
@@ -627,7 +875,7 @@ elif step.startswith("3"):
 # -------------------------------
 elif step.startswith("4"):
     st.subheader("Step 4 — Score each selected factor across each life cycle stage")
-    st.caption("Use 1–5 where 1 = Much Better, 3 = Equal, 5 = Much Worse (vs. baseline). Include a one‑sentence justification.")
+    st.caption("Use 1–5 where 1 = Much Worse, 3 = Equal, 5 = Much Better (vs. baseline). Include a one‑sentence justification.")
 
     # all factors (must be exactly 9)
     all9 = project.selected_factors.get("Environmental", []) + \
@@ -665,8 +913,6 @@ elif step.startswith("4"):
 # -------------------------------
 # Step 5: Results & plots
 # -------------------------------
-
-# -------- Markdown report --------
 elif step.startswith("5"):
     st.subheader("Step 5 — Results & plots")
 
@@ -675,10 +921,6 @@ elif step.startswith("5"):
            project.selected_factors.get("Economic", [])
     if len(all9) != 9:
         st.error("Complete Steps 3–4 first.")
-        st.stop()
-
-    if not project.lifecycle_stages:
-        st.error("Add at least one stage in Step 2 first.")
         st.stop()
 
     project.ensure_grid(all9)
@@ -690,123 +932,56 @@ elif step.startswith("5"):
 
     left, right = st.columns(2)
     with left:
-        st.metric(
-            "Overall score",
-            overall if overall is not None else "n/a",
-            help="Average of stage means (1=Much Better, 3=Equal, 5=Much Worse)."
-        )
-        stage_df = pd.DataFrame({
-            "Lifecycle stage": list(avg_stage.keys()),
-            "Average score": [round(v,1) for v in avg_stage.values()]
-        })
+        st.metric("Overall score", overall if overall is not None else "n/a", help="Average of stage means (1=Much Better, 3=Equal, 5=Much Worse).")
+        stage_df = pd.DataFrame({"Lifecycle stage": list(avg_stage.keys()), "Average score": [round(v,1) for v in avg_stage.values()]})
         st.dataframe(stage_df, use_container_width=True)
     with right:
-        factor_df = pd.DataFrame({
-            "Factor": list(avg_factor.keys()),
-            "Average score": [round(v,1) for v in avg_factor.values()]
-        })
+        factor_df = pd.DataFrame({"Factor": list(avg_factor.keys()), "Average score": [round(v,1) for v in avg_factor.values()]})
         st.dataframe(factor_df, use_container_width=True)
+    
+    # Build plotting frames
+    stage_plot = to_plot_df(stage_df, "Lifecycle stage", "Average score").rename(columns={"Lifecycle stage": "Category"})
+    factor_plot = to_plot_df(factor_df, "Factor", "Average score").rename(columns={"Factor": "Category"})
 
-    def status_label(val: float) -> str:
-        return "≤3 (good)" if val <= 3 else ">3 (attention)"
 
-    # ---- Build DataFrames ----
-    stage_df = pd.DataFrame({
-        "Lifecycle stage": list(avg_stage.keys()),
-        "Average score": [round(v, 2) for v in avg_stage.values()],
-    })
-    factor_df = pd.DataFrame({
-        "Factor": list(avg_factor.keys()),
-        "Average score": [round(v, 2) for v in avg_factor.values()],
-    })
-
-    # ---- Add status colors for both charts ----
-    stage_df["Status"]  = stage_df["Average score"].apply(status_label)
-    factor_df["Status"] = factor_df["Average score"].apply(status_label)
-
-    # ---- Map factors to their domain for the factor chart ----
-    # reverse map from your selected_factors
-    domain_map = {}
-    for dom in ("Environmental", "Social", "Economic"):
-        for f in project.selected_factors.get(dom, []):
-            domain_map[f] = dom
-    factor_df["Domain"] = factor_df["Factor"].map(domain_map).fillna("Unspecified")
-
-    # ---- Color palette (status) ----
-    STATUS_COLORS = {
-        "≤3 (good)": "#2ca02c",      # green
-        ">3 (attention)": "#8b0000", # dark red
-    }
-
-    # ==========================
-    # 📊 Average by lifecycle stage
-    # ==========================
+    # Plots
     st.markdown("#### 📊 Average by lifecycle stage")
-    fig1 = px.bar(
-        stage_df,
-        x="Lifecycle stage",
-        y="Average score",
-        text="Average score",
-        range_y=[1, 5],
-        color="Status",
-        color_discrete_map=STATUS_COLORS,
-    )
-    fig1.update_traces(textposition="outside")
-    fig1.update_layout(
-        yaxis_title="Score (1=Better … 5=Worse)",
-        xaxis_title="Lifecycle stage",
-        margin=dict(t=10, b=10),
-        legend_title_text="Status",
-    )
+    fig1 = horizontal_delta_bar(stage_plot, "Average by lifecycle stage")
     st.plotly_chart(fig1, use_container_width=True)
 
-    # ==========================
-    # 📈 Average by factor
-    # ==========================
-    # Use color for Status (green/red) and pattern for Domain (Env/Soc/Eco)
     st.markdown("#### 📈 Average by factor")
-    PATTERN_MAP = {
-        "Environmental": "",
-        "Social": "/",
-        "Economic": ".",
-        "Unspecified": ".",
-    }
-    fig2 = px.bar(
-        factor_df,
-        x="Factor",
-        y="Average score",
-        text="Average score",
-        range_y=[1, 5],
-        color="Status",
-        color_discrete_map=STATUS_COLORS,
-        pattern_shape="Domain",
-        pattern_shape_map=PATTERN_MAP,
-        category_orders={"Domain": ["Environmental", "Social", "Economic", "Unspecified"]},
-    )
-    fig2.update_traces(textposition="outside")
-    fig2.update_layout(
-        yaxis_title="Score (1=Better … 5=Worse)",
-        xaxis_title="Factor",
-        margin=dict(t=10, b=10),
-        legend_title_text="",
-    )
+    fig2 = horizontal_delta_bar(factor_plot, "Average by factor")
     st.plotly_chart(fig2, use_container_width=True)
-
 
     # Worst performing stage
     if avg_stage:
-        worst_stage, worst_val = max(avg_stage.items(), key=lambda kv: kv[1])
+        worst_stage, worst_val = min(avg_stage.items(), key=lambda kv: kv[1])
         st.markdown(f"### 🚩 Worst performing stage: **{worst_stage}** (avg {worst_val:.2f} — {interp_label(worst_val)})")
+        # Show its factor breakdown
         breakdown = project.grid.get(worst_stage, {})
         if breakdown:
             wdf = pd.DataFrame({
                 "Factor":[f for f in breakdown.keys()],
                 "Score":[breakdown[f].score for f in breakdown.keys()],
                 "Justification":[breakdown[f].note for f in breakdown.keys()],
-            }).sort_values("Score", ascending=False)
+            }).sort_values("Score", ascending=True)
             st.dataframe(wdf, use_container_width=True)
+    
+    # Best performing stage
+    if avg_stage:
+        best_stage, best_val = max(avg_stage.items(), key=lambda kv: kv[1])
+        st.markdown(f"### 🏆 Best performing stage: **{best_stage}** (avg {best_val:.2f} — {interp_label(best_val)})")
+        # Show its factor breakdown
+        breakdown = project.grid.get(best_stage, {})
+        if breakdown:
+            bdf = pd.DataFrame({
+                "Factor":[f for f in breakdown.keys()],
+                "Score":[breakdown[f].score for f in breakdown.keys()],
+                "Justification":[breakdown[f].note for f in breakdown.keys()],
+            }).sort_values("Score", ascending=False)
+            st.dataframe(bdf, use_container_width=True)
 
-    # Export results (JSON)
+    # Export results
     export = {
         "project": project.name,
         "description": project.description,
@@ -817,12 +992,8 @@ elif step.startswith("5"):
         "grid": {stage:{f: asdict(fs) for f, fs in fdict.items()} for stage, fdict in project.grid.items()},
         "averages": {"by_stage": avg_stage, "by_factor": avg_factor, "overall": overall},
     }
-    st.download_button(
-        "💾 Download results JSON",
-        data=json.dumps(export, indent=2),
-        file_name=f"{project.name.replace(' ','_')}_results.json",
-        mime="application/json"
-    )
+    st.download_button("💾 Download results JSON", data=json.dumps(export, indent=2), file_name=f"{project.name.replace(' ','_')}_results.json", mime="application/json")
+
 
 
 
@@ -865,10 +1036,15 @@ elif step.startswith("5"):
             for k, v in sorted(avg_factor.items(), key=lambda x: x[1], reverse=True):
                 lines.append(f"- {k}: {v:.2f}")
         if avg_stage:
-            worst_stage, worst_val = max(avg_stage.items(), key=lambda kv: kv[1])
+            worst_stage, worst_val = min(avg_stage.items(), key=lambda kv: kv[1])
             lines.append("")
             lines.append("### Worst performing stage")
             lines.append(f"- **{worst_stage}** (avg {worst_val:.2f} — {interp_label(worst_val)})")
+        lines.append("")
+        if avg_stage:
+            best_stage, best_val = max(avg_stage.items(), key=lambda kv: kv[1])
+            lines.append("### Best performing stage")
+            lines.append(f"- **{best_stage}** (avg {best_val:.2f} — {interp_label(best_val)})")
         lines.append("")
         if project.scoping_notes.strip():
             lines.append("## Notes")
@@ -887,8 +1063,8 @@ elif step.startswith("5"):
             overall,
             avg_stage,
             avg_factor,
-            st.session_state.get("functional_unit", ""),
-            st.session_state.get("core_function", ""),
+            functional_unit=project.functional_unit,
+            core_function=project.core_function,
         ),
         file_name=f"{project.name.replace(' ','_')}_SEED_report.md",
         mime="text/markdown",
@@ -901,5 +1077,5 @@ elif step.startswith("5"):
 # Footer
 # -------------------------------
 st.markdown("---")
-st.caption("Score guide — 1: Much Better • 2: Better • 3: Equal • 4: Worse • 5: Much Worse.")
+st.caption("Score guide — 1: Much Worse • 2: Worse • 3: Equal • 4: Better • 5: Much Better.")
 st.caption("This tool is intended for early‑stage, qualitative sustainability scoping and is not a substitute for a full LCA or S-LCA.")
