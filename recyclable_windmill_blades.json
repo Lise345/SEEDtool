@@ -1,0 +1,191 @@
+{
+  "name": "Recyclable Wind Turbine Blades",
+  "description": "Qualitative scoping for recyclable composite wind turbine blades at low TRL.",
+  "trl": 3,
+  "scoping_notes": "Focus on early-stage design trade-offs: recyclable thermoplastic composites vs. conventional thermoset blades.",
+  "lifecycle_stages": [
+    "Material production",
+    "Blade manufacturing",
+    "Operation & maintenance",
+    "End-of-life (EoL)"
+  ],
+  "lifecycle_changed": {
+    "Material production": true,
+    "Blade manufacturing": true,
+    "Operation & maintenance": false,
+    "End-of-life (EoL)": true
+  },
+  "selected_factors": {
+    "Environmental": [
+      "Climate change",
+      "Resource use, fossils",
+      "Land Use"
+    ],
+    "Social": [
+      "Health and safety (workers)",
+      "Public commitment to sustainability issues (society)",
+      "Local employment (local community)"
+    ],
+    "Economic": [
+      "Complexity of production process",
+      "Raw material cost",
+      "Cost of final product"
+    ]
+  },
+  "grid": {
+    "Material production": {
+      "Climate change": {
+        "score": 2,
+        "note": "Thermoplastic production has higher footprint than thermosets."
+      },
+      "Resource use, fossils": {
+        "score": 2,
+        "note": "Still relies on fossil-derived polymers."
+      },
+      "Land Use": {
+        "score": 4,
+        "note": "Future recyclability potential increases responsibility."
+      },
+      "Health and safety (workers)": {
+        "score": 3,
+        "note": "Standard composite handling, some chemical risks."
+      },
+      "Public commitment to sustainability issues (society)": {
+        "score": 4,
+        "note": "Strong narrative of recyclability in renewable energy sector."
+      },
+      "Local employment (local community)": {
+        "score": 3,
+        "note": "Some jobs in local manufacturing plants."
+      },
+      "Complexity of production process": {
+        "score": 2,
+        "note": "More complex than thermosets (higher temperature, tooling)."
+      },
+      "Raw material cost": {
+        "score": 2,
+        "note": "More expensive polymers than conventional resins."
+      },
+      "Cost of final product": {
+        "score": 2,
+        "note": "Blade cost expected to be higher initially."
+      }
+    },
+    "Blade manufacturing": {
+      "Climate change": {
+        "score": 3,
+        "note": "Similar energy intensity to conventional manufacturing."
+      },
+      "Resource use, fossils": {
+        "score": 2,
+        "note": "High energy demand and fossil-derived electricity in some regions."
+      },
+      "Land Use": {
+        "score": 3,
+        "note": "Design for recyclability not yet proven at manufacturing stage."
+      },
+      "Health and safety (workers)": {
+        "score": 2,
+        "note": "High temperature processing may increase risks."
+      },
+      "Public commitment to sustainability issues (society)": {
+        "score": 4,
+        "note": "Branding value of recyclable blades for OEMs."
+      },
+      "Local employment (local community)": {
+        "score": 3,
+        "note": "Standard employment effects."
+      },
+      "Complexity of production process": {
+        "score": 2,
+        "note": "Manufacturing is more challenging with thermoplastics."
+      },
+      "Raw material cost": {
+        "score": 2,
+        "note": "Still costlier inputs than thermosets."
+      },
+      "Cost of final product": {
+        "score": 2,
+        "note": "Cost premiums remain significant at TRL 3."
+      }
+    },
+    "Operation & maintenance": {
+      "Climate change": {
+        "score": 3,
+        "note": "No major differences expected during operation."
+      },
+      "Resource use, fossils": {
+        "score": 3,
+        "note": "No major differences compared to conventional blades."
+      },
+      "Land Use": {
+        "score": 3,
+        "note": "O&M phase not directly relevant."
+      },
+      "Health and safety (workers)": {
+        "score": 3,
+        "note": "Similar maintenance conditions as standard blades."
+      },
+      "Public commitment to sustainability issues (society)": {
+        "score": 3,
+        "note": "No additional benefit at O&M phase."
+      },
+      "Local employment (local community)": {
+        "score": 3,
+        "note": "Same as conventional blades."
+      },
+      "Complexity of production process": {
+        "score": 3,
+        "note": "O&M procedures unchanged."
+      },
+      "Raw material cost": {
+        "score": 3,
+        "note": "No cost differences at O&M phase."
+      },
+      "Cost of final product": {
+        "score": 3,
+        "note": "No direct impact from O&M."
+      }
+    },
+    "End-of-life (EoL)": {
+      "Climate change": {
+        "score": 4,
+        "note": "Recycling avoids landfill/incineration emissions."
+      },
+      "Resource use, fossils": {
+        "score": 4,
+        "note": "Recovered material can displace virgin polymer."
+      },
+      "Land Use": {
+        "score": 5,
+        "note": "Clear benefit over current non-recyclable thermoset blades."
+      },
+      "Health and safety (workers)": {
+        "score": 3,
+        "note": "Industrial recycling conditions manageable."
+      },
+      "Public commitment to sustainability issues (society)": {
+        "score": 5,
+        "note": "Strong societal value in solving blade waste challenge."
+      },
+      "Local employment (local community)": {
+        "score": 4,
+        "note": "New recycling industry can create local jobs."
+      },
+      "Complexity of production process": {
+        "score": 3,
+        "note": "End-of-life logistics require new infrastructure."
+      },
+      "Raw material cost": {
+        "score": 4,
+        "note": "Secondary material streams can lower cost long-term."
+      },
+      "Cost of final product": {
+        "score": 3,
+        "note": "Recycling may reduce life-cycle cost balance."
+      }
+    }
+  },
+  "core_function": "Enable wind energy generation with recyclable blades.",
+  "functional_unit": "One 60-meter wind turbine blade designed for 20 years of operation, recyclable at end-of-life."
+}
