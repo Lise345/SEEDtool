@@ -1,0 +1,56 @@
+# 🌱 SEED — Sustainability Evaluation for Early-stage Decisions
+
+SEED is a **Streamlit-based tool** to support **qualitative sustainability assessment** of new materials and products at **low Technology Readiness Levels (TRL)**.
+
+The goal is to help researchers and innovators:
+- Engage the right **actors** early in development.
+- Define a clear **core function** and **functional unit** before detailed LCA is feasible.
+- Identify **environmental, social, and economic trade-offs**.
+- Highlight **worst-performing lifecycle stages** early, enabling design adjustments when design freedom is still high.
+
+This tool is useful for **research proposals**, where claims about sustainability need justification, but a full LCA is not yet possible.
+
+---
+
+## ✨ Key Features
+
+- **Step 1 — TRL & actors**  
+  Define TRL and see which actors to involve.
+
+- **Step 2 — Scoping & lifecycle**  
+  Define the **core function** and **functional unit**, and map up to 7 lifecycle stages.
+
+- **Step 3 — Select factors**  
+  Choose 3 key Environmental, Social, and Economic factors (guided by definitions).
+
+- **Step 4 — Scoring grid**  
+  Score each factor per stage (1 = Much Worse … 5 = Much Better) vs. baseline.  
+  *A dashed baseline at 3 makes trade-offs clear.*
+
+- **Step 5 — Results & plots**  
+  - Horizontal bar plots, centered at the baseline of 3.  
+  - Red (<2), Orange (2–4), Green (>4).  
+  - Highlight worst and best stages.  
+  - Export results as **JSON** or **Markdown report**.
+
+- **Import/Export** projects to JSON for collaboration.
+
+- Includes an **example project** on recyclable wind turbine blades.
+
+---
+
+## 📦 Installation
+
+Clone the repository and install dependencies:
+
+```bash
+git clone https://github.com/<your-username>/seed-app.git
+cd seed-app
+
+# Create and activate a virtual environment (recommended)
+python -m venv .venv
+source .venv/bin/activate  # on Linux/Mac
+.venv\Scripts\activate     # on Windows
+
+# Install dependencies
+pip install -r requirements.txt
