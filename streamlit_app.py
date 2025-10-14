@@ -22,6 +22,15 @@ APP_TAGLINE = "Project-based scoping for new materials & products"
 # Data & configuration
 # -------------------------------
 
+WORKFLOW_STEPS = [
+    "1) TRL & actors",
+    "2) Scoping & lifecycle",
+    "3) Select factors (3 each)",
+    "4) Scoring grid",
+    "5) Results & plots",
+]
+
+
 TRL_TABLE = [
     {"level": 1, "actors": ["Technology developers", "External scientific experts"],
      "definition": "Basic principles observed"},
@@ -97,24 +106,6 @@ INTERPRETATION = [
     {"label":"Measurably Better", "upper":5, "explanation":"Leads to a measurable improvement"},
 ]
 
-DEFAULT_LIFE_CYCLE = [
-    "Raw material extraction",
-    "Material synthesis / processing",
-    "Component manufacturing",
-    "Product assembly",
-    "Distribution & logistics",
-    "Use phase",
-    "End-of-life (reuse/recycling/disposal)",
-]
-
-# --- Subtitles (not counted as stages themselves) ---
-SECTION_TITLES = [
-    "Raw Material Extraction & Processing",
-    "Manufacturing",
-    "Transportation",
-    "Installation & Operation",
-    "End-of-Life & Recycling",
-]
 
 # --- Factor metadata for Step 3 (EF3.1) ---
 ENV_FACTOR_META = {
@@ -399,6 +390,20 @@ def render_landing():
 
     # Three mini cards
     st.markdown("#### How it works")
+    st.caption("Take your time to go through the tool to understand the stages before gathering your stakeholders. Use the example file on windmill blades to go through the tool.")
+    # Example file download (unchanged)
+    example_path = pathlib.Path("recyclable_windmill_blades.json")
+    if example_path.exists():
+        with open(example_path, "rb") as f:
+            st.download_button(
+                "📥 Download example project: Recyclable windmill blades",
+                data=f.read(),
+                file_name="recyclable_windmill_blades.json",
+                mime="application/json",
+            )
+    else:
+        st.info("Place `recyclable_windmill_blades.json` in the app folder to enable the example project download.")
+
     cc1, cc2, cc3 = st.columns(3)
     with cc1:
         st.markdown("##### 1) TRL & actors")
@@ -412,29 +417,70 @@ def render_landing():
 
     st.markdown("---")
     cta1, cta2 = st.columns([1, 3])
+
+    # ➕ Create new
     with cta1:
+        st.subheader("Start a new project")
+        name = st.text_input("Project name", value="New SEED Project") 
+        desc = st.text_area("Short description", value="")
         if st.button("➕ Start a new SEED project", use_container_width=True, type="primary"):
             name = _new_project_name()
             st.session_state.projects[name] = Project(name=name, description="")
             st.session_state.active_project = name
-            st.success(f"Created project “{name}”. Use the sidebar to proceed.")
+            st.session_state.step_idx = 0
+            st.success(f"Created project “{name}”.")
             st.rerun()
+
+    # 📥 Import OR open existing
     with cta2:
-        st.caption("You can also import a project JSON in the sidebar.")
+        st.subheader("Start from an existing file")
+        uploaded = st.file_uploader(
+            "Import project JSON",
+            type=["json"],
+            help="Upload a project previously exported from this app.",
+        )
+        if uploaded is not None:
+            try:
+                data = json.load(uploaded)
+                proj = Project(**data)
+                proj.coerce_grid()
+                st.session_state.projects[proj.name] = proj
+                st.session_state.active_project = proj.name
+                st.session_state.step_idx = 0
+                st.success(f"Imported project “{proj.name}”.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Could not import: {e}")
 
-    # --- Example project download ---
-    example_path = pathlib.Path("recyclable_windmill_blades.json")
-    if example_path.exists():
-        with open(example_path, "rb") as f:
-            st.download_button(
-                "📥 Download example project: Recyclable windmill blades",
-                data=f.read(),
-                file_name="recyclable_windmill_blades.json",
-                mime="application/json",
-            )
-    else:
-        st.info("Place `recyclable_windmill_blades.json` in the app folder to enable the example project download.")
+        # Optional: open an already-saved local project from this session
+        existing = list(st.session_state.projects.keys())
+        if existing:
+            st.markdown("Or open a project you created earlier in this session:")
+            sel = st.selectbox("Open project", options=["<Select>"] + existing, index=0)
+            if sel != "<Select>":
+                st.session_state.active_project = sel
+                st.session_state.step_idx = 0
+                st.rerun()
 
+def bottom_nav(total_steps=len(WORKFLOW_STEPS)):
+    st.markdown("---")
+    c1, c2, c3 = st.columns([1, 6, 1])
+    left_disabled  = st.session_state.step_idx <= 0
+    right_disabled = st.session_state.step_idx >= total_steps - 1
+
+    with c1:
+        if st.button("⬅️ Back", use_container_width=True, disabled=left_disabled):
+            if st.session_state.step_idx > 0:
+                st.session_state.step_idx -= 1
+                st.rerun()
+
+    with c3:
+        if st.button("Next ➡️", use_container_width=True, disabled=right_disabled):
+            if st.session_state.step_idx < total_steps - 1:
+                st.session_state.step_idx += 1
+                st.rerun()
+
+    
 def factor_breakdown_plot(stage_name: str, breakdown: Dict[str, FactorScore]):
     # dict -> DataFrame
     df = pd.DataFrame(
@@ -536,50 +582,32 @@ if "active_project" not in st.session_state:
 # Sidebar: Project management
 # -------------------------------
 with st.sidebar:
-    st.title("📁 Projects")
-    existing = list(st.session_state.projects.keys())
-    selected = st.selectbox("Open project", options=["<New project>"] + existing, index=0 if st.session_state.active_project is None else (existing.index(st.session_state.active_project)+1 if st.session_state.active_project in existing else 0))
+    st.title("🧭 Process")
 
-    if selected == "<New project>":
-        st.write("Create a new project.")
-        name = st.text_input("Project name", value="New SEED Project")
-        desc = st.text_area("Short description", value="")
-        if st.button("➕ Create"):
-            if not name.strip():
-                st.warning("Please provide a project name.")
-            elif name in st.session_state.projects:
-                st.warning("A project with this name already exists.")
-            else:
-                st.session_state.projects[name] = Project(name=name, description=desc)
-                st.session_state.active_project = name
-                st.success(f"Created project “{name}”.")
-    else:
-        st.session_state.active_project = selected
-        if st.button("🗑️ Delete this project"):
-            st.session_state.projects.pop(selected, None)
-            st.session_state.active_project = None
-            st.warning(f"Deleted project “{selected}”.")
+    ap_key = st.session_state.get("active_project")
+    ap = st.session_state.projects.get(ap_key) if ap_key else None
 
-    st.markdown("---")
-    st.subheader("Import / Export")
-    uploaded = st.file_uploader("Import project JSON", type=["json"], help="Upload a project previously exported from this app.")
-    if uploaded is not None:
-        try:
-            data = json.load(uploaded)
-            proj = Project(**data)
-            proj.coerce_grid()  # <-- important after JSON load
-            st.session_state.projects[proj.name] = proj
-            st.session_state.active_project = proj.name
+    if ap:
+        step = st.radio(
+            "Navigate steps",
+            options=WORKFLOW_STEPS,
+            index=st.session_state.step_idx,
+            key="workflow_radio",
+        )
+        st.session_state.step_idx = WORKFLOW_STEPS.index(step)
 
-        except Exception as e:
-            st.error(f"Could not import: {e}")
+        st.markdown("---")
+        st.caption("Active project")
+        st.write(f"**{ap.name}**")  # <- guaranteed to be the Project.name
+        if ap.description:
+            st.caption(ap.description)
 
-    if st.session_state.active_project:
-        ap = st.session_state.projects[st.session_state.active_project]
         download_json_button(asdict(ap), f"{ap.name.replace(' ','_')}.json", "💾 Export active project")
+        st.markdown("---")
+    else:
+        st.info("Create or import a project on the landing page to begin.")
 
-    st.markdown("---")
-    st.caption("Tip: You can create multiple projects and switch between them here.")
+
 
 # -------------------------------
 # Header & guard
@@ -595,6 +623,17 @@ if st.session_state.active_project is None:
 
 project: Project = st.session_state.projects[st.session_state.active_project]
 
+# ---------- Canonical subtitles + detailed stage labels ----------
+CANONICAL_SECTIONS = [
+    "Product (A0–A3)",
+    "Construction (A4–A5)",
+    "Use (B1–B5)",
+    "End of Life (C1–C4, D)",
+]
+
+# Make SECTION_TITLES exactly match the canonical order (prevents KeyError)
+SECTION_TITLES = CANONICAL_SECTIONS
+
 # --- NEW: sections (per-session lists of stages under each subtitle) ---
 if "sections" not in st.session_state:
     st.session_state.sections = {title: [] for title in SECTION_TITLES}
@@ -606,36 +645,8 @@ def scoping_is_done(p: Project) -> bool:
 st.session_state.scoping_done = scoping_is_done(project)
 
 
-WORKFLOW_STEPS = [
-    "1) TRL & actors",
-    "2) Scoping & lifecycle",
-    "3) Select factors (3 each)",
-    "4) Scoring grid",
-    "5) Results & plots",
-]
 
 
-# -------------------------------
-# Navigation
-# -------------------------------
-st.markdown("### Workflow")
-if "step_idx" not in st.session_state:
-    st.session_state.step_idx = 0
-
-step = st.sidebar.radio("Navigate steps", options=WORKFLOW_STEPS, index=st.session_state.step_idx, key="workflow_radio")
-# keep idx in sync if user clicks the radio directly
-st.session_state.step_idx = WORKFLOW_STEPS.index(step)
-
-# Back / Next buttons (put wherever you prefer — here below the radio in the sidebar)
-bcols = st.sidebar.columns(2)
-if bcols[0].button("⬅️ Back", use_container_width=True) and st.session_state.step_idx > 0:
-    st.session_state.step_idx -= 1
-    st.rerun()
-if bcols[1].button("Next ➡️", use_container_width=True) and st.session_state.step_idx < len(WORKFLOW_STEPS)-1:
-    st.session_state.step_idx += 1
-    st.rerun()
-
-# Use `step` in your if/elif sections as before
 
 
 # -------------------------------
@@ -658,10 +669,12 @@ if step.startswith("1"):
     st.text_area("Notes on stakeholders / initial assumptions", key="trl_notes", value=project.scoping_notes, on_change=lambda: None)
     # update back when leaving step 1
     project.scoping_notes = st.session_state.get("trl_notes", project.scoping_notes)
+    bottom_nav()
 
 # -------------------------------
 # Step 2: Scoping & lifecycle
 # -------------------------------
+
 elif step.startswith("2"):
     st.subheader("Step 2 — Scoping and lifecycle")
     st.write("The subtitles below are **not** stages. Add the **actual stages** under the relevant subtitle. Max total 7 stages.")
@@ -675,13 +688,191 @@ elif step.startswith("2"):
             st.session_state.sections[_t] = []
     sections = st.session_state.sections  # shorthand
 
+    # ---------- Canonical subtitles + detailed stage labels ----------
+    CANONICAL_SECTIONS = [
+        "Product (A0–A3)",
+        "Construction (A4–A5)",
+        "Use (B1–B5)",
+        "End of Life (C1–C4, D)",
+    ]
+
+    # Make SECTION_TITLES exactly match the canonical order (prevents KeyError)
+    SECTION_TITLES = CANONICAL_SECTIONS
+
+    # Detailed labels from your document
+    CODE_TO_LABEL = {
+        "A0": "A0 - Pre-construction (design & non-physical activities) [UK]",
+        "A1": "A1 - Raw Material Supply",
+        "A2": "A2 - Transport to Manufacturer",
+        "A3": "A3 - Manufacturing",
+        "A4": "A4 - Transport to Site",
+        "A5": "A5 - Installation on Site",
+        "B1": "B1 - Use/Application",
+        "B2": "B2 - Maintenance",
+        "B3": "B3 - Repair",
+        "B4": "B4 - Replacement",
+        "B5": "B5 - Refurbishment",
+        # Not seeded by default, but defined for future toggles/migrations if needed:
+        "B6": "B6 - Operational Energy Use",
+        "B7": "B7 - Operational Water Use",
+        "B8": "B8 - Operational Transport (NS3720/PAS2080/EN-17472)",
+        "B9": "B9 - User Utilisation (PAS2080)",
+        "C1": "C1 - Deconstruction/Demolition",
+        "C2": "C2 - Transport to Waste Processing",
+        "C3": "C3 - Waste Processing for Reuse/Recovery/Recycling",
+        "C4": "C4 - Disposal",
+        "D":  "D - Reuse/Recovery/Recycling Potentials (beyond boundary)",
+    }
+
+    
+
+    # Bucketing helper based on stage code
+    def _bucket_for_code(code: str) -> str:
+        code = code.upper().strip()
+        if code in ("A0","A1","A2","A3"):
+            return CANONICAL_SECTIONS[0]  # Product
+        if code in ("A4","A5"):
+            return CANONICAL_SECTIONS[1]  # Construction
+        if code in ("B1","B2","B3","B4","B5"):
+            return CANONICAL_SECTIONS[2]  # Use
+        if code in ("C1","C2","C3","C4","D"):
+            return CANONICAL_SECTIONS[3]  # End of Life
+        return CANONICAL_SECTIONS[0]
+
+    # Extract a stage code from any string like "A1", "A1 - ...", etc.
+    import re
+    def _code_from_name(name: str) -> str | None:
+        m = re.match(r"^\s*([ABCD]\d?)\b", str(name).upper())
+        return m.group(1) if m else None
+    
+    # ---------- Preload sections from the active project's lifecycle_stages (on import) ----------
+    def _changed_flag_from_project(label: str) -> bool:
+        # prefer exact label, else match by stage code
+        code = _code_from_name(label)
+        if label in project.lifecycle_changed:
+            return bool(project.lifecycle_changed[label])
+        for k, v in project.lifecycle_changed.items():
+            if _code_from_name(k) == code:
+                return bool(v)
+        return False
+
+    def _canonical_label(name: str) -> str:
+        code = _code_from_name(name)
+        return CODE_TO_LABEL.get(code, name)
+
+    # If buckets are empty but project already has stages, preload them
+    if all(len(v) == 0 for v in sections.values()) and getattr(project, "lifecycle_stages", []):
+        for stage in project.lifecycle_stages:
+            label = _canonical_label(stage)
+            bucket = _bucket_for_code(_code_from_name(stage))
+            if label not in sections[bucket]:
+                sections[bucket].append(label)
+            project.lifecycle_changed[label] = _changed_flag_from_project(stage)
+
+    # Else (truly new project), seed defaults once
+    elif (
+        not st.session_state.get("seeded_canon_labels", False)
+        and not project.lifecycle_stages
+        and all(len(v) == 0 for v in sections.values())
+    ):
+        DEFAULT_PRODUCT = ["A1","A2","A3"]
+        DEFAULT_CONSTR  = ["A4","A5"]
+        DEFAULT_USE     = ["B1","B2","B3","B4","B5"]
+        DEFAULT_EOL     = ["C1","C2","C3","C4"]
+
+        def _add_unique(bucket: str, code: str):
+            label = CODE_TO_LABEL.get(code, code)
+            if label not in sections[bucket]:
+                sections[bucket].append(label)
+            project.lifecycle_changed[label] = False
+
+        for c in DEFAULT_PRODUCT:  _add_unique(CANONICAL_SECTIONS[0], c)
+        for c in DEFAULT_CONSTR:   _add_unique(CANONICAL_SECTIONS[1], c)
+        for c in DEFAULT_USE:      _add_unique(CANONICAL_SECTIONS[2], c)
+        for c in DEFAULT_EOL:      _add_unique(CANONICAL_SECTIONS[3], c)
+        st.session_state.seeded_canon_labels = True
+    
+
+    # If current session sections don’t match canonical titles, migrate everything
+    if set(st.session_state.sections.keys()) != set(CANONICAL_SECTIONS):
+        new_sections = {t: [] for t in CANONICAL_SECTIONS}
+        for _, lst in st.session_state.sections.items():
+            for s in (lst or []):
+                code = _code_from_name(s) or s.strip().upper()
+                bucket = _bucket_for_code(code)
+                label = CODE_TO_LABEL.get(code, s)
+                if label not in new_sections[bucket]:
+                    new_sections[bucket].append(label)
+                # Default all migrated to not "will change" unless already set
+                if label not in project.lifecycle_changed:
+                    project.lifecycle_changed[label] = False
+        st.session_state.sections = new_sections
+
+    # Refresh local alias after migration & ensure all canonical keys exist
+    sections = st.session_state.sections
+    for t in CANONICAL_SECTIONS:
+        sections.setdefault(t, [])
+
+    # ---------- Seed defaults once with detailed labels ----------
+    DEFAULT_PRODUCT = ["A1","A2","A3"]         # Product bucket
+    DEFAULT_CONSTR  = ["A4","A5"]              # Construction bucket
+    DEFAULT_USE     = ["B1","B2","B3","B4","B5"]
+    DEFAULT_EOL     = ["C1","C2","C3","C4"]
+    OPTION_A0 = "A0"
+    OPTION_D  = "D"
+
+    def _add_unique(bucket: str, code: str):
+        label = CODE_TO_LABEL.get(code, code)
+        if label not in sections[bucket]:
+            sections[bucket].append(label)
+        project.lifecycle_changed[label] = False  # never highlighted by default
+
+    # Seed only if everything is empty (no user content yet)
+    if (
+        not st.session_state.get("seeded_canon_labels", False)
+        and not project.lifecycle_stages
+        and all(len(v) == 0 for v in sections.values())
+    ):
+        for c in DEFAULT_PRODUCT:  _add_unique(CANONICAL_SECTIONS[0], c)
+        for c in DEFAULT_CONSTR:   _add_unique(CANONICAL_SECTIONS[1], c)
+        for c in DEFAULT_USE:      _add_unique(CANONICAL_SECTIONS[2], c)
+        for c in DEFAULT_EOL:      _add_unique(CANONICAL_SECTIONS[3], c)
+        st.session_state.seeded_canon_labels = True
+
+    # ---------- Optional modules (A0 and D) with detailed labels ----------
+    opt_cols = st.columns([3, 3])
+    with opt_cols[0]:
+        inc_a0 = st.checkbox("Include A0 (UK only)", value=False, key="inc_a0")
+    with opt_cols[1]:
+        inc_d  = st.checkbox("Include D (beyond system boundary)", value=False, key="inc_d")
+
+    label_a0 = CODE_TO_LABEL[OPTION_A0]
+    label_d  = CODE_TO_LABEL[OPTION_D]
+
+    if inc_a0:
+        _add_unique(CANONICAL_SECTIONS[0], OPTION_A0)
+    else:
+        if label_a0 in sections[CANONICAL_SECTIONS[0]]:
+            sections[CANONICAL_SECTIONS[0]].remove(label_a0)
+            project.lifecycle_changed.pop(label_a0, None)
+
+    if inc_d:
+        _add_unique(CANONICAL_SECTIONS[3], OPTION_D)
+    else:
+        if label_d in sections[CANONICAL_SECTIONS[3]]:
+            sections[CANONICAL_SECTIONS[3]].remove(label_d)
+            project.lifecycle_changed.pop(label_d, None)
+
+    # Give users headroom beyond defaults
+    MAX_TOTAL = max(30, MAX_TOTAL if 'MAX_TOTAL' in locals() else 30)
+
+
+
+
     # ---------- Scoping exercise (required) ----------
     st.markdown("##### Scoping exercise (required before proceeding)")
     st.markdown(
         "Before using SEED, define the **core function** and a **functional unit**.\n\n"
-        "**Core Function (one sentence):**\n"
-        "“The main function of this material or application is to …”\n\n"
-        "**Functional Unit (quantitative reference):**\n"
         "Prefer function-over-time, e.g. “A tire enabling **100,000 km** of travel with reduced maintenance.”"
     )
 
@@ -700,17 +891,37 @@ elif step.startswith("2"):
     except Exception as e:
         st.warning(f"Couldn’t load the PDF: {e}")
 
+    # --- Core function (keeps live-binding as you had) ---
     project.core_function = st.text_area(
         "Core function (one sentence)",
         value=project.core_function,
         height=80,
         placeholder="e.g., The main function of the self-healing tire is to enable 100,000 km of safe travel with reduced maintenance.",
     )
-    project.functional_unit = st.text_input(
+
+    # --- Functional unit with explicit Save button ---
+    # Use a draft field in session state so typing doesn't overwrite the saved value
+    if "fu_draft" not in st.session_state:
+        st.session_state.fu_draft = project.functional_unit
+
+    st.session_state.fu_draft = st.text_input(
         "Functional unit (required)",
-        value=project.functional_unit,
+        value=st.session_state.fu_draft,
         placeholder="e.g., A tire enabling 100,000 km of driving",
+        key="functional_unit_draft_input",
     )
+
+    cols_fu = st.columns([1, 6])
+    with cols_fu[0]:
+        if st.button("💾 Save", key="save_fu_btn", use_container_width=True):
+            project.functional_unit = (st.session_state.fu_draft or "").strip()
+            # recompute the gate immediately
+            st.session_state.scoping_done = scoping_is_done(project)
+            st.success("Functional unit saved.")
+            st.rerun()
+    with cols_fu[1]:
+        st.caption(f"Saved value: **{project.functional_unit or '— (none saved yet) —'}**")
+
 
 
 
@@ -808,7 +1019,7 @@ elif step.startswith("2"):
         if not project.lifecycle_stages:
             missing.append("≥ 1 stage")
         st.warning("Please provide: " + " and ".join(missing) + " before moving to Step 3.")
-
+    bottom_nav()
 
 
 # -------------------------------
@@ -869,6 +1080,7 @@ elif step.startswith("3"):
     # Ensure grid has all combinations
     all9 = env_sel + soc_sel + eco_sel
     project.ensure_grid(all9)
+    bottom_nav()
 
 # -------------------------------
 # Step 4: Scoring grid
@@ -909,6 +1121,8 @@ elif step.startswith("4"):
                         fs.score = st.slider(f"{fname} — score", min_value=1, max_value=5, value=int(fs.score), key=f"{stage}_{fname}_score")
                         fs.note = st.text_area(f"Justification for {fname}", value=fs.note, key=f"{stage}_{fname}_note", height=80)
                         project.grid[stage][fname] = fs
+    bottom_nav()
+
 
 # -------------------------------
 # Step 5: Results & plots
@@ -1069,7 +1283,7 @@ elif step.startswith("5"):
         file_name=f"{project.name.replace(' ','_')}_SEED_report.md",
         mime="text/markdown",
     )
-
+    bottom_nav()
 
 
 
