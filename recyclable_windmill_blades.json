@@ -4,16 +4,38 @@
   "trl": 3,
   "scoping_notes": "Focus on early-stage design trade-offs: recyclable thermoplastic composites vs. conventional thermoset blades.",
   "lifecycle_stages": [
-    "Material production",
-    "Blade manufacturing",
-    "Operation & maintenance",
-    "End-of-life (EoL)"
+    "A1 - Raw Material Supply",
+    "A2 - Transport to Manufacturer",
+    "A3 - Manufacturing",
+    "A4 - Transport to Site",
+    "A5 - Installation on Site",
+    "B1 - Use/Application",
+    "B2 - Maintenance",
+    "B3 - Repair",
+    "B4 - Replacement",
+    "B5 - Refurbishment",
+    "C1 - Deconstruction/Demolition",
+    "C2 - Transport to Waste Processing",
+    "C3 - Waste Processing for Reuse/Recovery/Recycling",
+    "C4 - Disposal",
+    "D - Reuse/Recovery/Recycling Potentials (beyond boundary)"
   ],
   "lifecycle_changed": {
-    "Material production": true,
-    "Blade manufacturing": true,
-    "Operation & maintenance": false,
-    "End-of-life (EoL)": true
+    "A1 - Raw Material Supply": true,
+    "A2 - Transport to Manufacturer": true,
+    "A3 - Manufacturing": true,
+    "A4 - Transport to Site": true,
+    "A5 - Installation on Site": true,
+    "B1 - Use/Application": false,
+    "B2 - Maintenance": false,
+    "B3 - Repair": false,
+    "B4 - Replacement": false,
+    "B5 - Refurbishment": false,
+    "C1 - Deconstruction/Demolition": true,
+    "C2 - Transport to Waste Processing": true,
+    "C3 - Waste Processing for Reuse/Recovery/Recycling": false,
+    "C4 - Disposal": false,
+    "D - Reuse/Recovery/Recycling Potentials (beyond boundary)": false
   },
   "selected_factors": {
     "Environmental": [
@@ -33,157 +55,82 @@
     ]
   },
   "grid": {
-    "Material production": {
-      "Climate change": {
-        "score": 2,
-        "note": "Thermoplastic production has higher footprint than thermosets."
-      },
-      "Resource use, fossils": {
-        "score": 2,
-        "note": "Still relies on fossil-derived polymers."
-      },
-      "Land Use": {
-        "score": 4,
-        "note": "Future recyclability potential increases responsibility."
-      },
-      "Health and safety (workers)": {
-        "score": 3,
-        "note": "Standard composite handling, some chemical risks."
-      },
-      "Public commitment to sustainability issues (society)": {
-        "score": 4,
-        "note": "Strong narrative of recyclability in renewable energy sector."
-      },
-      "Local employment (local community)": {
-        "score": 3,
-        "note": "Some jobs in local manufacturing plants."
-      },
-      "Complexity of production process": {
-        "score": 2,
-        "note": "More complex than thermosets (higher temperature, tooling)."
-      },
-      "Raw material cost": {
-        "score": 2,
-        "note": "More expensive polymers than conventional resins."
-      },
-      "Cost of final product": {
-        "score": 2,
-        "note": "Blade cost expected to be higher initially."
-      }
+    "A1 - Raw Material Supply": {
+      "Climate change": { "score": 2, "note": "Thermoplastic production has higher footprint than thermosets." },
+      "Resource use, fossils": { "score": 2, "note": "Still relies on fossil-derived polymers." },
+      "Land Use": { "score": 4, "note": "Future recyclability potential increases responsibility." },
+      "Health and safety (workers)": { "score": 3, "note": "Standard composite handling, some chemical risks." },
+      "Public commitment to sustainability issues (society)": { "score": 4, "note": "Strong narrative of recyclability in renewable energy sector." },
+      "Local employment (local community)": { "score": 3, "note": "Some jobs in local manufacturing plants." },
+      "Complexity of production process": { "score": 2, "note": "More complex than thermosets (higher temperature, tooling)." },
+      "Raw material cost": { "score": 2, "note": "More expensive polymers than conventional resins." },
+      "Cost of final product": { "score": 2, "note": "Blade cost expected to be higher initially." }
     },
-    "Blade manufacturing": {
-      "Climate change": {
-        "score": 3,
-        "note": "Similar energy intensity to conventional manufacturing."
-      },
-      "Resource use, fossils": {
-        "score": 2,
-        "note": "High energy demand and fossil-derived electricity in some regions."
-      },
-      "Land Use": {
-        "score": 3,
-        "note": "Design for recyclability not yet proven at manufacturing stage."
-      },
-      "Health and safety (workers)": {
-        "score": 2,
-        "note": "High temperature processing may increase risks."
-      },
-      "Public commitment to sustainability issues (society)": {
-        "score": 4,
-        "note": "Branding value of recyclable blades for OEMs."
-      },
-      "Local employment (local community)": {
-        "score": 3,
-        "note": "Standard employment effects."
-      },
-      "Complexity of production process": {
-        "score": 2,
-        "note": "Manufacturing is more challenging with thermoplastics."
-      },
-      "Raw material cost": {
-        "score": 2,
-        "note": "Still costlier inputs than thermosets."
-      },
-      "Cost of final product": {
-        "score": 2,
-        "note": "Cost premiums remain significant at TRL 3."
-      }
+    "A2 - Transport to Manufacturer": {
+      "Climate change": { "score": 2, "note": "Thermoplastic production has higher footprint than thermosets." },
+      "Resource use, fossils": { "score": 2, "note": "Still relies on fossil-derived polymers." },
+      "Land Use": { "score": 4, "note": "Future recyclability potential increases responsibility." },
+      "Health and safety (workers)": { "score": 3, "note": "Standard composite handling, some chemical risks." },
+      "Public commitment to sustainability issues (society)": { "score": 4, "note": "Strong narrative of recyclability in renewable energy sector." },
+      "Local employment (local community)": { "score": 3, "note": "Some jobs in local manufacturing plants." },
+      "Complexity of production process": { "score": 2, "note": "More complex than thermosets (higher temperature, tooling)." },
+      "Raw material cost": { "score": 2, "note": "More expensive polymers than conventional resins." },
+      "Cost of final product": { "score": 2, "note": "Blade cost expected to be higher initially." }
     },
-    "Operation & maintenance": {
-      "Climate change": {
-        "score": 3,
-        "note": "No major differences expected during operation."
-      },
-      "Resource use, fossils": {
-        "score": 3,
-        "note": "No major differences compared to conventional blades."
-      },
-      "Land Use": {
-        "score": 3,
-        "note": "O&M phase not directly relevant."
-      },
-      "Health and safety (workers)": {
-        "score": 3,
-        "note": "Similar maintenance conditions as standard blades."
-      },
-      "Public commitment to sustainability issues (society)": {
-        "score": 3,
-        "note": "No additional benefit at O&M phase."
-      },
-      "Local employment (local community)": {
-        "score": 3,
-        "note": "Same as conventional blades."
-      },
-      "Complexity of production process": {
-        "score": 3,
-        "note": "O&M procedures unchanged."
-      },
-      "Raw material cost": {
-        "score": 3,
-        "note": "No cost differences at O&M phase."
-      },
-      "Cost of final product": {
-        "score": 3,
-        "note": "No direct impact from O&M."
-      }
+    "A3 - Manufacturing": {
+      "Climate change": { "score": 2, "note": "Thermoplastic production has higher footprint than thermosets." },
+      "Resource use, fossils": { "score": 2, "note": "Still relies on fossil-derived polymers." },
+      "Land Use": { "score": 4, "note": "Future recyclability potential increases responsibility." },
+      "Health and safety (workers)": { "score": 3, "note": "Standard composite handling, some chemical risks." },
+      "Public commitment to sustainability issues (society)": { "score": 4, "note": "Strong narrative of recyclability in renewable energy sector." },
+      "Local employment (local community)": { "score": 3, "note": "Some jobs in local manufacturing plants." },
+      "Complexity of production process": { "score": 2, "note": "More complex than thermosets (higher temperature, tooling)." },
+      "Raw material cost": { "score": 2, "note": "More expensive polymers than conventional resins." },
+      "Cost of final product": { "score": 2, "note": "Blade cost expected to be higher initially." }
     },
-    "End-of-life (EoL)": {
-      "Climate change": {
-        "score": 4,
-        "note": "Recycling avoids landfill/incineration emissions."
-      },
-      "Resource use, fossils": {
-        "score": 4,
-        "note": "Recovered material can displace virgin polymer."
-      },
-      "Land Use": {
-        "score": 5,
-        "note": "Clear benefit over current non-recyclable thermoset blades."
-      },
-      "Health and safety (workers)": {
-        "score": 3,
-        "note": "Industrial recycling conditions manageable."
-      },
-      "Public commitment to sustainability issues (society)": {
-        "score": 5,
-        "note": "Strong societal value in solving blade waste challenge."
-      },
-      "Local employment (local community)": {
-        "score": 4,
-        "note": "New recycling industry can create local jobs."
-      },
-      "Complexity of production process": {
-        "score": 3,
-        "note": "End-of-life logistics require new infrastructure."
-      },
-      "Raw material cost": {
-        "score": 4,
-        "note": "Secondary material streams can lower cost long-term."
-      },
-      "Cost of final product": {
-        "score": 3,
-        "note": "Recycling may reduce life-cycle cost balance."
-      }
+    "A4 - Transport to Site": {
+      "Climate change": { "score": 3, "note": "Similar energy intensity to conventional manufacturing." },
+      "Resource use, fossils": { "score": 2, "note": "High energy demand and fossil-derived electricity in some regions." },
+      "Land Use": { "score": 3, "note": "Design for recyclability not yet proven at manufacturing stage." },
+      "Health and safety (workers)": { "score": 2, "note": "High temperature processing may increase risks." },
+      "Public commitment to sustainability issues (society)": { "score": 4, "note": "Branding value of recyclable blades for OEMs." },
+      "Local employment (local community)": { "score": 3, "note": "Standard employment effects." },
+      "Complexity of production process": { "score": 2, "note": "Manufacturing is more challenging with thermoplastics." },
+      "Raw material cost": { "score": 2, "note": "Still costlier inputs than thermosets." },
+      "Cost of final product": { "score": 2, "note": "Cost premiums remain significant at TRL 3." }
+    },
+    "A5 - Installation on Site": {
+      "Climate change": { "score": 3, "note": "Similar energy intensity to conventional manufacturing." },
+      "Resource use, fossils": { "score": 2, "note": "High energy demand and fossil-derived electricity in some regions." },
+      "Land Use": { "score": 3, "note": "Design for recyclability not yet proven at manufacturing stage." },
+      "Health and safety (workers)": { "score": 2, "note": "High temperature processing may increase risks." },
+      "Public commitment to sustainability issues (society)": { "score": 4, "note": "Branding value of recyclable blades for OEMs." },
+      "Local employment (local community)": { "score": 3, "note": "Standard employment effects." },
+      "Complexity of production process": { "score": 2, "note": "Manufacturing is more challenging with thermoplastics." },
+      "Raw material cost": { "score": 2, "note": "Still costlier inputs than thermosets." },
+      "Cost of final product": { "score": 2, "note": "Cost premiums remain significant at TRL 3." }
+    },
+    "C1 - Deconstruction/Demolition": {
+      "Climate change": { "score": 4, "note": "Recycling avoids landfill/incineration emissions." },
+      "Resource use, fossils": { "score": 4, "note": "Recovered material can displace virgin polymer." },
+      "Land Use": { "score": 5, "note": "Clear benefit over current non-recyclable thermoset blades." },
+      "Health and safety (workers)": { "score": 3, "note": "Industrial recycling conditions manageable." },
+      "Public commitment to sustainability issues (society)": { "score": 5, "note": "Strong societal value in solving blade waste challenge." },
+      "Local employment (local community)": { "score": 4, "note": "New recycling industry can create local jobs." },
+      "Complexity of production process": { "score": 3, "note": "End-of-life logistics require new infrastructure." },
+      "Raw material cost": { "score": 4, "note": "Secondary material streams can lower cost long-term." },
+      "Cost of final product": { "score": 3, "note": "Recycling may reduce life-cycle cost balance." }
+    },
+    "C2 - Transport to Waste Processing": {
+      "Climate change": { "score": 4, "note": "Recycling avoids landfill/incineration emissions." },
+      "Resource use, fossils": { "score": 4, "note": "Recovered material can displace virgin polymer." },
+      "Land Use": { "score": 5, "note": "Clear benefit over current non-recyclable thermoset blades." },
+      "Health and safety (workers)": { "score": 3, "note": "Industrial recycling conditions manageable." },
+      "Public commitment to sustainability issues (society)": { "score": 5, "note": "Strong societal value in solving blade waste challenge." },
+      "Local employment (local community)": { "score": 4, "note": "New recycling industry can create local jobs." },
+      "Complexity of production process": { "score": 3, "note": "End-of-life logistics require new infrastructure." },
+      "Raw material cost": { "score": 4, "note": "Secondary material streams can lower cost long-term." },
+      "Cost of final product": { "score": 3, "note": "Recycling may reduce life-cycle cost balance." }
     }
   },
   "core_function": "Enable wind energy generation with recyclable blades.",
