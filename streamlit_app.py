@@ -6,9 +6,8 @@ import json
 from dataclasses import dataclass, field, asdict
 from typing import List, Dict, Optional, Tuple
 import statistics
+import math
 
-
-import statistics
 
 import streamlit as st
 import pandas as pd
@@ -231,7 +230,7 @@ ECON_FACTOR_META = {
 # -------------------------------
 @dataclass
 class FactorScore:
-    score: int = 3
+    score: Optional[float] = None   # None = “I don’t know”
     note: str = ""
 
 @dataclass
@@ -264,20 +263,21 @@ class Project:
     def average_by_stage(self) -> Dict[str, float]:
         out: Dict[str, float] = {}
         for stage, facs in self.grid.items():
-            vals = [fs.score for fs in facs.values()] if facs else []
+            vals = [fs.score for fs in facs.values() if getattr(fs, "score", None) is not None] if facs else []
             out[stage] = statistics.mean(vals) if vals else float("nan")
         return out
 
     def average_by_factor(self) -> Dict[str, float]:
-        acc: Dict[str, List[int]] = {}
+        acc: Dict[str, List[float]] = {}
         for facs in self.grid.values():
             for f, fs in facs.items():
-                acc.setdefault(f, []).append(fs.score)
+                if getattr(fs, "score", None) is not None:
+                    acc.setdefault(f, []).append(fs.score)
         return {f: statistics.mean(v) for f, v in acc.items()} if acc else {}
 
     def overall_score(self) -> Optional[float]:
         avs = self.average_by_stage()
-        vals = [v for v in avs.values() if isinstance(v, (int, float))]
+        vals = [v for v in avs.values() if isinstance(v, (int, float)) and not math.isnan(v)]
         return round(statistics.mean(vals), 2) if vals else None
 
     # keep this to fix imports
@@ -1101,6 +1101,7 @@ elif step.startswith("4"):
     project.ensure_grid(all9)
 
     legend = pd.DataFrame([{"Score": r["upper"], "Meaning": r["label"], "Explanation": r["explanation"]} for r in INTERPRETATION])
+    st.caption("Tip: Tick **I don’t know** to exclude a cell from all averages.")
     st.dataframe(legend, use_container_width=True)
 
     for stage in project.lifecycle_stages:
@@ -1118,7 +1119,26 @@ elif step.startswith("4"):
                     col = cols[i % 3]
                     with col:
                         fs = project.grid.setdefault(stage, {}).setdefault(fname, FactorScore())
-                        fs.score = st.slider(f"{fname} — score", min_value=1, max_value=5, value=int(fs.score), key=f"{stage}_{fname}_score")
+                        # Select-slider including “I don’t know”
+                        current = fs.score if fs.score in (1, 2, 3, 4, 5) else "I don’t know"
+                        unknown_key = f"{stage}_{fname}_unknown"
+                        is_unknown_default = (fs.score is None)
+                        is_unknown = st.checkbox("I don’t know", value=is_unknown_default, key=unknown_key)
+
+                        # Slider: enabled only when not unknown
+                        # If previously unknown, show a neutral default (3) until the user picks a value.
+                        current_val = 3 if fs.score is None else int(fs.score)
+                        new_val = st.slider(
+                            f"{fname} — score",
+                            min_value=1,
+                            max_value=5,
+                            value=current_val,
+                            key=f"{stage}_{fname}_score",
+                            disabled=is_unknown
+                        )
+
+                        # Persist back to the model
+                        fs.score = None if is_unknown else float(new_val)
                         fs.note = st.text_area(f"Justification for {fname}", value=fs.note, key=f"{stage}_{fname}_note", height=80)
                         project.grid[stage][fname] = fs
     bottom_nav()
@@ -1147,7 +1167,10 @@ elif step.startswith("5"):
     left, right = st.columns(2)
     with left:
         st.metric("Overall score", overall if overall is not None else "n/a", help="Average of stage means (1=Much Better, 3=Equal, 5=Much Worse).")
-        stage_df = pd.DataFrame({"Lifecycle stage": list(avg_stage.keys()), "Average score": [round(v,1) for v in avg_stage.values()]})
+        stage_df = pd.DataFrame({
+            "Lifecycle stage": list(avg_stage.keys()),
+            "Average score": [None if math.isnan(v) else round(v, 1) for v in avg_stage.values()]
+        })
         st.dataframe(stage_df, use_container_width=True)
     with right:
         factor_df = pd.DataFrame({"Factor": list(avg_factor.keys()), "Average score": [round(v,1) for v in avg_factor.values()]})
@@ -1167,11 +1190,11 @@ elif step.startswith("5"):
     fig2 = horizontal_delta_bar(factor_plot, "Average by factor")
     st.plotly_chart(fig2, use_container_width=True)
 
-    # Worst performing stage
-    if avg_stage:
-        worst_stage, worst_val = min(avg_stage.items(), key=lambda kv: kv[1])
+    # Worst performing stage (ignore NaNs)
+    valid_stage_avgs = {k: v for k, v in avg_stage.items() if not math.isnan(v)}
+    if valid_stage_avgs:
+        worst_stage, worst_val = min(valid_stage_avgs.items(), key=lambda kv: kv[1])
         st.markdown(f"### 🚩 Worst performing stage: **{worst_stage}** (avg {worst_val:.2f} — {interp_label(worst_val)})")
-        # Show its factor breakdown
         breakdown = project.grid.get(worst_stage, {})
         if breakdown:
             wdf = pd.DataFrame({
@@ -1180,14 +1203,14 @@ elif step.startswith("5"):
                 "Justification":[breakdown[f].note for f in breakdown.keys()],
             }).sort_values("Score", ascending=True)
             st.dataframe(wdf, use_container_width=True)
-    
-    # Best performing stage
-    if avg_stage:
-        best_stage, best_val = max(avg_stage.items(), key=lambda kv: kv[1])
+
+    # Best performing stage (ignore NaNs)
+    if valid_stage_avgs:
+        best_stage, best_val = max(valid_stage_avgs.items(), key=lambda kv: kv[1])
         st.markdown(f"### 🏆 Best performing stage: **{best_stage}** (avg {best_val:.2f} — {interp_label(best_val)})")
-        # Show its factor breakdown
         breakdown = project.grid.get(best_stage, {})
         if breakdown:
+
             bdf = pd.DataFrame({
                 "Factor":[f for f in breakdown.keys()],
                 "Score":[breakdown[f].score for f in breakdown.keys()],
@@ -1242,21 +1265,23 @@ elif step.startswith("5"):
         if avg_stage:
             lines.append("")
             lines.append("### Average by lifecycle stage")
-            for k, v in sorted(avg_stage.items(), key=lambda x: x[1], reverse=True):
+            valid_stage_avgs = {k: v for k, v in avg_stage.items() if not math.isnan(v)}
+            for k, v in sorted(valid_stage_avgs.items(), key=lambda x: x[1], reverse=True):
                 lines.append(f"- {k}: {v:.2f}")
+
         if avg_factor:
             lines.append("")
             lines.append("### Average by factor")
             for k, v in sorted(avg_factor.items(), key=lambda x: x[1], reverse=True):
                 lines.append(f"- {k}: {v:.2f}")
-        if avg_stage:
-            worst_stage, worst_val = min(avg_stage.items(), key=lambda kv: kv[1])
+        if valid_stage_avgs:
+            worst_stage, worst_val = min(valid_stage_avgs.items(), key=lambda kv: kv[1])
             lines.append("")
             lines.append("### Worst performing stage")
             lines.append(f"- **{worst_stage}** (avg {worst_val:.2f} — {interp_label(worst_val)})")
         lines.append("")
-        if avg_stage:
-            best_stage, best_val = max(avg_stage.items(), key=lambda kv: kv[1])
+        if valid_stage_avgs:
+            best_stage, best_val = max(valid_stage_avgs.items(), key=lambda kv: kv[1])
             lines.append("### Best performing stage")
             lines.append(f"- **{best_stage}** (avg {best_val:.2f} — {interp_label(best_val)})")
         lines.append("")
