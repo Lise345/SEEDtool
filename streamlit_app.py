@@ -1104,10 +1104,16 @@ elif step.startswith("4"):
     st.caption("Tip: Tick **I don’t know** to exclude a cell from all averages.")
     st.dataframe(legend, use_container_width=True)
 
-    for stage in project.lifecycle_stages:
+    stages_to_score = [s for s in project.lifecycle_stages if project.lifecycle_changed.get(s, False)]
+    if not stages_to_score:
+        stages_to_score = project.lifecycle_stages  # optional: fall back so the page isn't empty
+
+
+    for stage in stages_to_score:  # ← use filtered list
         st.markdown(f"#### 🧩 {stage}")
         if project.lifecycle_changed.get(stage, False):
             st.caption("This stage is expected to change with the new material.")
+
 
         # Show by category
         for cat, factors in [("Environmental", project.selected_factors["Environmental"]),
