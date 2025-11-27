@@ -245,6 +245,7 @@ class Project:
     grid: Dict[str, Dict[str, FactorScore]] = field(default_factory=dict)  # stage -> factor -> FactorScore
     core_function: str = ""
     functional_unit: str = ""
+    tradeoff_notes: str = ""
 
     # --- restore this! ---
     def ensure_grid(self, all_factors: List[str]) -> None:
@@ -356,7 +357,8 @@ def render_landing():
     st.markdown(
         "<div class='pill'>Low TRL focus</div>"
         "<div class='pill'>Qualitative assessment</div>"
-        "<div class='pill'>Trade-offs & hot-spots</div>",
+        "<div class='pill'>Trade-offs & hot-spots</div>"
+        "<div class='pill'>Alternative scenarios</div>",
         unsafe_allow_html=True,
     )
     st.markdown("</div>", unsafe_allow_html=True)
@@ -369,13 +371,16 @@ def render_landing():
             "- **Engage the right actors early** (Step 1) and **co-scope** function & system boundaries (Step 2).\n"
             "- **Select key factors** across Environmental, Social, Economic (Step 3) — with definitions.\n"
             "- **Score transparently** across life-cycle stages (Step 4) and **surface hot-spots** instantly (Step 5).\n"
-            "- Use results to **justify claims** in proposals when a full **LCA is premature**."
+            "- **Explore trade-offs**: use the results to compare alternative technology or design scenarios and "
+            "discuss where improvements in one area may worsen another."
         )
         st.markdown("#### Interpreting results")
         st.markdown(
             "- Sustainability is a **balance**: improvements in one factor may worsen another.\n"
+            "- The goal of SEED is **not** to make everything green, but to make **transparent trade-off decisions** "
+            "between factors and stages.\n"
             "- Plots are **centered at a baseline of 3 (Equal)**, so left = worse, right = better.\n"
-            "- We highlight **worst-performing stages** early so you can iterate design choices."
+            "- We highlight **worst-performing stages** early so you can iterate design choices and **build alternative scenarios**."
         )
         st.markdown("#### Scope & limits")
         st.markdown(
@@ -413,7 +418,11 @@ def render_landing():
         st.info("Define **core function** and **functional unit**; map a **lean lifecycle**.")
     with cc3:
         st.markdown("##### 3–5) Factors → Scores → Hot-spots")
-        st.info("Pick 3 factors per pillar, score 1–5 vs baseline, and review **worst stages**.")
+        st.info(
+            "Pick 3 factors per pillar, score 1–5 vs baseline, review **worst stages**, "
+            "and use them as input for a **trade-off discussion on alternative scenarios**."
+        )
+
 
     st.markdown("---")
     cta1, cta2 = st.columns([1, 3])
@@ -1104,6 +1113,7 @@ elif step.startswith("4"):
     st.caption("Tip: Tick **I don’t know** to exclude a cell from all averages.")
     st.dataframe(legend, use_container_width=True)
 
+    
     stages_to_score = [s for s in project.lifecycle_stages if project.lifecycle_changed.get(s, False)]
     if not stages_to_score:
         stages_to_score = project.lifecycle_stages  # optional: fall back so the page isn't empty
@@ -1113,7 +1123,6 @@ elif step.startswith("4"):
         st.markdown(f"#### 🧩 {stage}")
         if project.lifecycle_changed.get(stage, False):
             st.caption("This stage is expected to change with the new material.")
-
 
         # Show by category
         for cat, factors in [("Environmental", project.selected_factors["Environmental"]),
@@ -1224,6 +1233,32 @@ elif step.startswith("5"):
             }).sort_values("Score", ascending=False)
             st.dataframe(bdf, use_container_width=True)
 
+    # --- New section: Trade-offs & alternative scenarios ---
+    st.markdown("### ♻️ Trade-offs and alternative scenarios")
+
+    st.markdown(
+        """
+        After viewing the results:
+
+        - Together with the stakeholders, you are encouraged to view **trade-offs between sustainability dimensions** by considering **alternative technology or design scenarios**.
+        - Based on the hotspot analysis (e.g. the red bars in your assessment outcomes), first consider **targeted changes** that could improve one or more hotspots.
+        - Then ask: **Can you think of alternative technology scenarios where these hotspots are reduced?**
+        - Also consider **what difference this new scenario makes** in terms of the **other sustainability impacts** across lifecycle stages.
+        """
+    )
+
+    project.tradeoff_notes = st.text_area(
+        "Notes on trade-offs and alternative scenarios",
+        value=project.tradeoff_notes,
+        height=220,
+        help=(
+            "Use this space to summarise: (1) which hotspots you focus on, "
+            "(2) what targeted changes or new scenarios you consider, and "
+            "(3) how these might improve or worsen other stages or factors."
+        ),
+    )
+
+
     # Export results
     export = {
         "project": project.name,
@@ -1234,6 +1269,7 @@ elif step.startswith("5"):
         "selected_factors": project.selected_factors,
         "grid": {stage:{f: asdict(fs) for f, fs in fdict.items()} for stage, fdict in project.grid.items()},
         "averages": {"by_stage": avg_stage, "by_factor": avg_factor, "overall": overall},
+        "tradeoff_notes": project.tradeoff_notes,  # 👈 NEW
     }
     st.download_button("💾 Download results JSON", data=json.dumps(export, indent=2), file_name=f"{project.name.replace(' ','_')}_results.json", mime="application/json")
 
@@ -1294,6 +1330,10 @@ elif step.startswith("5"):
         if project.scoping_notes.strip():
             lines.append("## Notes")
             lines.append(project.scoping_notes.strip())
+            lines.append("")
+        if project.tradeoff_notes.strip():
+            lines.append("## Trade-offs and alternative scenarios")
+            lines.append(project.tradeoff_notes.strip())
             lines.append("")
         lines.append("_Score guide — 1: Much Better • 2: Better • 3: Equal • 4: Worse • 5: Much Worse._")
         return "\n".join(lines)
