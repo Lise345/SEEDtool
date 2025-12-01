@@ -246,6 +246,7 @@ class Project:
     core_function: str = ""
     functional_unit: str = ""
     tradeoff_notes: str = ""
+    scenario_scores: Dict[str, Dict[str, float]] = field(default_factory=dict)
 
     # --- restore this! ---
     def ensure_grid(self, all_factors: List[str]) -> None:
@@ -1387,124 +1388,156 @@ elif step.startswith("5"):
                     "This does not overwrite your original scores."
                 )
 
-                # 2) Scenario scores for each factor in that stage (do NOT write back to project.grid)
-                scenario_scores: Dict[str, float] = {}
+                # Scenario store for this stage (persist across UI interactions)
+                stage_scen = project.scenario_scores.setdefault(stage_choice, {})
+
+                # If first time we touch this stage, initialise scenario with baseline scores
+                if not stage_scen:
+                    for fname, fs in baseline_breakdown.items():
+                        if fs.score is not None:
+                            stage_scen[fname] = float(fs.score)
+
+                # Small reset buttons
+                reset_col1, reset_col2 = st.columns([1, 1])
+
+                with reset_col1:
+                    st.button(
+                        "🔄 Reset this stage",
+                        key=f"reset_scen_{stage_choice}",
+                        use_container_width=True,
+                        type="secondary",
+                    )
+
+                with reset_col2:
+                    st.button(
+                        "🧹 Reset all scenarios",
+                        key="reset_scen_all",
+                        use_container_width=True,
+                        type="secondary",
+                    )
+
+
+                # 2) Scenario sliders per factor (write back into stage_scen / project.scenario_scores)
                 cols = st.columns(3)
                 i = 0
                 for fname, fs in baseline_breakdown.items():
-                    # Skip cells that were “I don’t know”
                     if fs.score is None:
-                        continue
+                        continue  # skip “I don’t know”
                     col = cols[i % 3]
                     i += 1
                     with col:
-                        current_val = int(fs.score)
-                        scenario_scores[fname] = float(
-                            st.slider(
-                                f"{fname} — scenario score",
-                                min_value=1,
-                                max_value=5,
-                                value=current_val,
-                                key=f"scenario_{stage_choice}_{fname}",
-                                help=f"Original score: {current_val}",
-                            )
+                        # Current scenario value = stored scenario or baseline
+                        current_val = stage_scen.get(
+                            fname,
+                            int(fs.score) if fs.score is not None else 3,
                         )
+                        new_val = st.slider(
+                            f"{fname} — scenario score",
+                            min_value=1,
+                            max_value=5,
+                            value=int(current_val),
+                            key=f"scenario_{stage_choice}_{fname}",
+                            help=f"Original score: {fs.score if fs.score is not None else 'n/a'}",
+                        )
+                        stage_scen[fname] = float(new_val)
 
-                if scenario_scores:
-                    # 3) Recompute scenario averages
-                    scenario_stage_mean = statistics.mean(scenario_scores.values())
+                # 3) Recompute scenario averages across *all* changed stages
+                #    (this is the key for multi-stage trade-offs)
+                scenario_avg_stage = dict(avg_stage)  # start from baseline
 
-                    scenario_avg_stage = dict(avg_stage)  # copy
-                    scenario_avg_stage[stage_choice] = scenario_stage_mean
+                for stg, fac_scores in project.scenario_scores.items():
+                    if fac_scores:
+                        scenario_avg_stage[stg] = statistics.mean(fac_scores.values())
 
-                    scenario_overall_vals = [
-                        v
-                        for v in scenario_avg_stage.values()
-                        if isinstance(v, (int, float)) and not math.isnan(v)
-                    ]
-                    scenario_overall = (
-                        statistics.mean(scenario_overall_vals)
-                        if scenario_overall_vals
-                        else float("nan")
+                # Overall scenario score based on all modified stages
+                scenario_overall_vals = [
+                    v
+                    for v in scenario_avg_stage.values()
+                    if isinstance(v, (int, float)) and not math.isnan(v)
+                ]
+                scenario_overall = (
+                    statistics.mean(scenario_overall_vals)
+                    if scenario_overall_vals
+                    else float("nan")
+                )
+
+                # For the selected stage, get its scenario mean
+                scenario_stage_mean = scenario_avg_stage.get(
+                    stage_choice, float("nan")
+                )
+
+                # 4) Show metrics side-by-side
+                mc1, mc2, mc3 = st.columns(3)
+                with mc1:
+                    st.metric(
+                        "Current overall score",
+                        value=overall if overall is not None else "n/a",
                     )
-
-                    # 4) Show metrics side-by-side
-                    mc1, mc2, mc3 = st.columns(3)
-                    with mc1:
-                        st.metric(
-                            "Current overall score",
-                            value=overall if overall is not None else "n/a",
-                        )
-                    with mc2:
-                        delta_overall = None
-                        if overall is not None and not math.isnan(scenario_overall):
-                            delta_overall = round(
-                                scenario_overall - overall, 2
-                            )
-                        st.metric(
-                            "Scenario overall score",
-                            value=(
-                                "n/a"
-                                if math.isnan(scenario_overall)
-                                else round(scenario_overall, 2)
-                            ),
-                            delta=delta_overall,
-                            help=(
-                                "Lower is better if you interpret "
-                                "1 = much better, 3 = equal, 5 = much worse."
-                            ),
-                        )
-                    with mc3:
-                        current_stage = avg_stage.get(
-                            stage_choice, float("nan")
-                        )
-                        delta_stage = None
-                        if not math.isnan(current_stage) and not math.isnan(
-                            scenario_stage_mean
-                        ):
-                            delta_stage = round(
-                                scenario_stage_mean - current_stage, 2
-                            )
-                        st.metric(
-                            f"{stage_choice} — avg scenario score",
-                            value=round(scenario_stage_mean, 2),
-                            delta=delta_stage,
-                        )
-
-                    # 5) Updated stage plot with scenario values
-                    scenario_stage_df = pd.DataFrame(
-                        {
-                            "Lifecycle stage": list(scenario_avg_stage.keys()),
-                            "Average score": [
-                                None if math.isnan(v) else round(v, 2)
-                                for v in scenario_avg_stage.values()
-                            ],
-                        }
-                    )
-                    scenario_stage_plot = to_plot_df(
-                        scenario_stage_df,
-                        "Lifecycle stage",
-                        "Average score",
-                    ).rename(columns={"Lifecycle stage": "Category"})
-
-                    st.markdown("##### Scenario vs. current — by lifecycle stage")
-                    st.caption(
-                        "The bars below use the **scenario score** for the selected stage "
-                        "and the original scores for all other stages."
-                    )
-                    st.plotly_chart(
-                        horizontal_delta_bar(
-                            scenario_stage_plot,
-                            "Scenario average by lifecycle stage",
+                with mc2:
+                    delta_overall = None
+                    if overall is not None and not math.isnan(scenario_overall):
+                        delta_overall = round(scenario_overall - overall, 2)
+                    st.metric(
+                        "Scenario overall score",
+                        value=(
+                            "n/a"
+                            if math.isnan(scenario_overall)
+                            else round(scenario_overall, 2)
                         ),
-                        use_container_width=True,
+                        delta=delta_overall,
+                        help=(
+                            "Uses scenario scores for all stages you have edited, "
+                            "baseline scores for the rest."
+                        ),
+                    )
+                with mc3:
+                    current_stage = avg_stage.get(stage_choice, float("nan"))
+                    delta_stage = None
+                    if not math.isnan(current_stage) and not math.isnan(
+                        scenario_stage_mean
+                    ):
+                        delta_stage = round(
+                            scenario_stage_mean - current_stage, 2
+                        )
+                    st.metric(
+                        f"{stage_choice} — avg scenario score",
+                        value=(
+                            "n/a"
+                            if math.isnan(scenario_stage_mean)
+                            else round(scenario_stage_mean, 2)
+                        ),
+                        delta=delta_stage,
                     )
 
-                else:
-                    st.info(
-                        "This stage only had “I don’t know” scores. "
-                        "Add at least one numeric score in Step 4 to explore a scenario."
-                    )
+                # 5) Updated stage plot with all scenario changes applied
+                scenario_stage_df = pd.DataFrame(
+                    {
+                        "Lifecycle stage": list(scenario_avg_stage.keys()),
+                        "Average score": [
+                            None if math.isnan(v) else round(v, 2)
+                            for v in scenario_avg_stage.values()
+                        ],
+                    }
+                )
+                scenario_stage_plot = to_plot_df(
+                    scenario_stage_df,
+                    "Lifecycle stage",
+                    "Average score",
+                ).rename(columns={"Lifecycle stage": "Category"})
+
+                st.markdown("##### Scenario vs. current — by lifecycle stage")
+                st.caption(
+                    "Bars use scenario scores for all stages you edited and baseline "
+                    "scores for the others."
+                )
+                st.plotly_chart(
+                    horizontal_delta_bar(
+                        scenario_stage_plot,
+                        "Scenario average by lifecycle stage",
+                    ),
+                    use_container_width=True,
+                )
+
 
     # ---------------- RIGHT: Trade-off notes + optional visual ----------------
     with col_right:
@@ -1572,6 +1605,7 @@ elif step.startswith("5"):
             "overall": overall,
         },
         "tradeoff_notes": project.tradeoff_notes,
+        "scenario_scores": project.scenario_scores,
     }
 
     # Put the two exports side-by-side like small cards
