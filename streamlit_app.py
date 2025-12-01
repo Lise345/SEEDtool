@@ -1160,106 +1160,401 @@ elif step.startswith("4"):
 
 
 # -------------------------------
-# Step 5: Results & plots
+# Step 5: Results, trade-offs & export
 # -------------------------------
-elif step.startswith("5"):
-    st.subheader("Step 5 — Results & plots")
 
-    all9 = project.selected_factors.get("Environmental", []) + \
-           project.selected_factors.get("Social", []) + \
-           project.selected_factors.get("Economic", [])
+elif step.startswith("5"):
+    st.subheader("Step 5 — Results, trade-offs & report")
+    st.caption(
+        "Review the scores, explore what-if scenarios with your stakeholders,"
+        " and capture the trade-offs you are willing to accept."
+    )
+
+    # --- Guard: need 3×3 selected factors ---
+    all9 = (
+        project.selected_factors.get("Environmental", [])
+        + project.selected_factors.get("Social", [])
+        + project.selected_factors.get("Economic", [])
+    )
     if len(all9) != 9:
-        st.error("Complete Steps 3–4 first.")
+        st.error("Complete Steps 3–4 first (3 factors per dimension, all scored).")
         st.stop()
 
     project.ensure_grid(all9)
 
-    # Tables
+    # --- Core stats ---
     avg_stage = project.average_by_stage()
     avg_factor = project.average_by_factor()
     overall = project.overall_score()
-
-    left, right = st.columns(2)
-    with left:
-        st.metric("Overall score", overall if overall is not None else "n/a", help="Average of stage means (1=Much Better, 3=Equal, 5=Much Worse).")
-        stage_df = pd.DataFrame({
-            "Lifecycle stage": list(avg_stage.keys()),
-            "Average score": [None if math.isnan(v) else round(v, 1) for v in avg_stage.values()]
-        })
-        st.dataframe(stage_df, use_container_width=True)
-    with right:
-        factor_df = pd.DataFrame({"Factor": list(avg_factor.keys()), "Average score": [round(v,1) for v in avg_factor.values()]})
-        st.dataframe(factor_df, use_container_width=True)
-    
-    # Build plotting frames
-    stage_plot = to_plot_df(stage_df, "Lifecycle stage", "Average score").rename(columns={"Lifecycle stage": "Category"})
-    factor_plot = to_plot_df(factor_df, "Factor", "Average score").rename(columns={"Factor": "Category"})
-
-
-    # Plots
-    st.markdown("#### 📊 Average by lifecycle stage")
-    fig1 = horizontal_delta_bar(stage_plot, "Average by lifecycle stage")
-    st.plotly_chart(fig1, use_container_width=True)
-
-    st.markdown("#### 📈 Average by factor")
-    fig2 = horizontal_delta_bar(factor_plot, "Average by factor")
-    st.plotly_chart(fig2, use_container_width=True)
-
-    # Worst performing stage (ignore NaNs)
     valid_stage_avgs = {k: v for k, v in avg_stage.items() if not math.isnan(v)}
-    if valid_stage_avgs:
-        worst_stage, worst_val = min(valid_stage_avgs.items(), key=lambda kv: kv[1])
-        st.markdown(f"### 🚩 Worst performing stage: **{worst_stage}** (avg {worst_val:.2f} — {interp_label(worst_val)})")
-        breakdown = project.grid.get(worst_stage, {})
-        if breakdown:
-            wdf = pd.DataFrame({
-                "Factor":[f for f in breakdown.keys()],
-                "Score":[breakdown[f].score for f in breakdown.keys()],
-                "Justification":[breakdown[f].note for f in breakdown.keys()],
-            }).sort_values("Score", ascending=True)
-            st.dataframe(wdf, use_container_width=True)
 
-    # Best performing stage (ignore NaNs)
-    if valid_stage_avgs:
-        best_stage, best_val = max(valid_stage_avgs.items(), key=lambda kv: kv[1])
-        st.markdown(f"### 🏆 Best performing stage: **{best_stage}** (avg {best_val:.2f} — {interp_label(best_val)})")
-        breakdown = project.grid.get(best_stage, {})
-        if breakdown:
+    # Prepare dataframes for plots/tables
+    stage_df = pd.DataFrame(
+        {
+            "Lifecycle stage": list(avg_stage.keys()),
+            "Average score": [
+                None if math.isnan(v) else round(v, 1) for v in avg_stage.values()
+            ],
+        }
+    )
+    factor_df = pd.DataFrame(
+        {
+            "Factor": list(avg_factor.keys()),
+            "Average score": [round(v, 1) for v in avg_factor.values()],
+        }
+    )
 
-            bdf = pd.DataFrame({
-                "Factor":[f for f in breakdown.keys()],
-                "Score":[breakdown[f].score for f in breakdown.keys()],
-                "Justification":[breakdown[f].note for f in breakdown.keys()],
-            }).sort_values("Score", ascending=False)
-            st.dataframe(bdf, use_container_width=True)
-
-    # --- New section: Trade-offs & alternative scenarios ---
-    st.markdown("### ♻️ Trade-offs and alternative scenarios")
-
+    # --- Overview card ---
     st.markdown(
         """
-        After viewing the results:
+        <style>
+        .overview-card, .tradeoff-box, .export-box {
+            border: 1px solid #e4e4e7;
+            border-radius: 14px;
+            padding: 1rem 1.25rem 1.25rem 1.25rem;
+            margin-top: 1rem;
+            background: #fafafa;
+        }
+        .pill-small {
+            display:inline-block;
+            padding:0.15rem 0.5rem;
+            margin-right:0.35rem;
+            border-radius:999px;
+            font-size:0.75rem;
+            font-weight:500;
+            background:#e4e4e7;
+            color:#3f3f46;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
-        - Together with the stakeholders, you are encouraged to view **trade-offs between sustainability dimensions** by considering **alternative technology or design scenarios**.
-        - Based on the hotspot analysis (e.g. the red bars in your assessment outcomes), first consider **targeted changes** that could improve one or more hotspots.
-        - Then ask: **Can you think of alternative technology scenarios where these hotspots are reduced?**
-        - Also consider **what difference this new scenario makes** in terms of the **other sustainability impacts** across lifecycle stages.
+
+    oc1, oc2 = st.columns([1, 2])
+
+    with oc1:
+        st.metric(
+            "Overall score",
+            overall if overall is not None else "n/a",
+            help="Average of stage means (1 = much better, 3 = equal, 5 = much worse).",
+        )
+
+    with oc2:
+        if valid_stage_avgs:
+            worst_stage, worst_val = min(
+                valid_stage_avgs.items(), key=lambda kv: kv[1]
+            )
+            best_stage, best_val = max(
+                valid_stage_avgs.items(), key=lambda kv: kv[1]
+            )
+            st.markdown(
+                f"**Quick read:** "
+                f"<span class='pill-small'>Best stage: {best_stage} ({best_val:.2f})</span>"
+                f"<span class='pill-small'>Worst stage: {worst_stage} ({worst_val:.2f})</span>",
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown("_No valid averages yet — check Step 4._")
+        st.markdown(
+            "Use the tabs below to explore scores by lifecycle stage and by factor."
+            "Then use the trade-offs section to discuss alternatives."
+        )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # --- Tabs: by stage / by factor ---
+    tab_factor, tab_stage = st.tabs(["By factor", "By lifecycle stage"])
+
+    # Build plotting frames
+    stage_plot = to_plot_df(stage_df, "Lifecycle stage", "Average score").rename(
+        columns={"Lifecycle stage": "Category"}
+    )
+    factor_plot = to_plot_df(factor_df, "Factor", "Average score").rename(
+        columns={"Factor": "Category"}
+    )
+
+    with tab_stage:
+        st.markdown("#### 📊 Average by lifecycle stage")
+        st.caption("Scores vs baseline 3: left = better, right = worse.")
+        fig1 = horizontal_delta_bar(stage_plot, "Average by lifecycle stage")
+        st.plotly_chart(fig1, use_container_width=True)
+        st.markdown("##### Table: stage averages")
+        st.dataframe(stage_df, use_container_width=True)
+
+    with tab_factor:
+        st.markdown("#### 📈 Average by factor")
+        st.caption("Factor-level averages across all scored stages.")
+        fig2 = horizontal_delta_bar(factor_plot, "Average by factor")
+        st.plotly_chart(fig2, use_container_width=True)
+        st.markdown("##### Table: factor averages")
+        st.dataframe(factor_df, use_container_width=True)
+
+    # --- Details for best & worst stages (optional, in expander) ---
+    with st.expander("Details for best & worst stages", expanded=False):
+        if valid_stage_avgs:
+            worst_stage, worst_val = min(
+                valid_stage_avgs.items(), key=lambda kv: kv[1]
+            )
+            best_stage, best_val = max(
+                valid_stage_avgs.items(), key=lambda kv: kv[1]
+            )
+
+            st.markdown(
+                f"**🚩 Worst stage:** **{worst_stage}** "
+                f"(avg {worst_val:.2f} — {interp_label(worst_val)})"
+            )
+            breakdown_worst = project.grid.get(worst_stage, {})
+            if breakdown_worst:
+                wdf = (
+                    pd.DataFrame(
+                        {
+                            "Factor": list(breakdown_worst.keys()),
+                            "Score": [
+                                breakdown_worst[f].score
+                                for f in breakdown_worst.keys()
+                            ],
+                            "Justification": [
+                                breakdown_worst[f].note
+                                for f in breakdown_worst.keys()
+                            ],
+                        }
+                    )
+                    .sort_values("Score", ascending=True)
+                )
+                st.dataframe(wdf, use_container_width=True)
+
+            st.markdown("---")
+
+            st.markdown(
+                f"**🏆 Best stage:** **{best_stage}** "
+                f"(avg {best_val:.2f} — {interp_label(best_val)})"
+            )
+            breakdown_best = project.grid.get(best_stage, {})
+            if breakdown_best:
+                bdf = (
+                    pd.DataFrame(
+                        {
+                            "Factor": list(breakdown_best.keys()),
+                            "Score": [
+                                breakdown_best[f].score
+                                for f in breakdown_best.keys()
+                            ],
+                            "Justification": [
+                                breakdown_best[f].note
+                                for f in breakdown_best.keys()
+                            ],
+                        }
+                    )
+                    .sort_values("Score", ascending=False)
+                )
+                st.dataframe(bdf, use_container_width=True)
+        else:
+            st.info("No valid best/worst stage yet — check your scores in Step 4.")
+
+    # --- Trade-offs & what-if scenarios ---
+    st.markdown("### ♻️ Trade-offs & what-if scenarios")
+
+    st.write(
+        "Use this section to **turn the numbers into decisions**:\n\n"
+        "1. Explore a *what-if* change for one lifecycle stage.\n"
+        "2. See how the stage and overall scores shift.\n"
+        "3. Summarise the trade-offs you are willing (or not willing) to accept."
+    )
+
+    col_left, col_right = st.columns([2, 1])
+
+    # ---------------- LEFT: What-if explorer ----------------
+    with col_left:
+        st.markdown("#### 1. Explore a what-if change")
+
+        with st.expander("Adjust scores for an alternative scenario", expanded=True):
+            if not valid_stage_avgs:
+                st.info(
+                    "Add some scores in Step 4 first before exploring what-if scenarios."
+                )
+            else:
+                # 1) Choose stage to modify
+                stage_choice = st.selectbox(
+                    "Stage to explore in a new scenario",
+                    options=list(valid_stage_avgs.keys()),
+                    key="scenario_stage_choice",
+                )
+
+                baseline_breakdown = project.grid.get(stage_choice, {}) or {}
+
+                st.caption(
+                    f"You are exploring a *scenario* for **{stage_choice}** only. "
+                    "This does not overwrite your original scores."
+                )
+
+                # 2) Scenario scores for each factor in that stage (do NOT write back to project.grid)
+                scenario_scores: Dict[str, float] = {}
+                cols = st.columns(3)
+                i = 0
+                for fname, fs in baseline_breakdown.items():
+                    # Skip cells that were “I don’t know”
+                    if fs.score is None:
+                        continue
+                    col = cols[i % 3]
+                    i += 1
+                    with col:
+                        current_val = int(fs.score)
+                        scenario_scores[fname] = float(
+                            st.slider(
+                                f"{fname} — scenario score",
+                                min_value=1,
+                                max_value=5,
+                                value=current_val,
+                                key=f"scenario_{stage_choice}_{fname}",
+                                help=f"Original score: {current_val}",
+                            )
+                        )
+
+                if scenario_scores:
+                    # 3) Recompute scenario averages
+                    scenario_stage_mean = statistics.mean(scenario_scores.values())
+
+                    scenario_avg_stage = dict(avg_stage)  # copy
+                    scenario_avg_stage[stage_choice] = scenario_stage_mean
+
+                    scenario_overall_vals = [
+                        v
+                        for v in scenario_avg_stage.values()
+                        if isinstance(v, (int, float)) and not math.isnan(v)
+                    ]
+                    scenario_overall = (
+                        statistics.mean(scenario_overall_vals)
+                        if scenario_overall_vals
+                        else float("nan")
+                    )
+
+                    # 4) Show metrics side-by-side
+                    mc1, mc2, mc3 = st.columns(3)
+                    with mc1:
+                        st.metric(
+                            "Current overall score",
+                            value=overall if overall is not None else "n/a",
+                        )
+                    with mc2:
+                        delta_overall = None
+                        if overall is not None and not math.isnan(scenario_overall):
+                            delta_overall = round(
+                                scenario_overall - overall, 2
+                            )
+                        st.metric(
+                            "Scenario overall score",
+                            value=(
+                                "n/a"
+                                if math.isnan(scenario_overall)
+                                else round(scenario_overall, 2)
+                            ),
+                            delta=delta_overall,
+                            help=(
+                                "Lower is better if you interpret "
+                                "1 = much better, 3 = equal, 5 = much worse."
+                            ),
+                        )
+                    with mc3:
+                        current_stage = avg_stage.get(
+                            stage_choice, float("nan")
+                        )
+                        delta_stage = None
+                        if not math.isnan(current_stage) and not math.isnan(
+                            scenario_stage_mean
+                        ):
+                            delta_stage = round(
+                                scenario_stage_mean - current_stage, 2
+                            )
+                        st.metric(
+                            f"{stage_choice} — avg scenario score",
+                            value=round(scenario_stage_mean, 2),
+                            delta=delta_stage,
+                        )
+
+                    # 5) Updated stage plot with scenario values
+                    scenario_stage_df = pd.DataFrame(
+                        {
+                            "Lifecycle stage": list(scenario_avg_stage.keys()),
+                            "Average score": [
+                                None if math.isnan(v) else round(v, 2)
+                                for v in scenario_avg_stage.values()
+                            ],
+                        }
+                    )
+                    scenario_stage_plot = to_plot_df(
+                        scenario_stage_df,
+                        "Lifecycle stage",
+                        "Average score",
+                    ).rename(columns={"Lifecycle stage": "Category"})
+
+                    st.markdown("##### Scenario vs. current — by lifecycle stage")
+                    st.caption(
+                        "The bars below use the **scenario score** for the selected stage "
+                        "and the original scores for all other stages."
+                    )
+                    st.plotly_chart(
+                        horizontal_delta_bar(
+                            scenario_stage_plot,
+                            "Scenario average by lifecycle stage",
+                        ),
+                        use_container_width=True,
+                    )
+
+                else:
+                    st.info(
+                        "This stage only had “I don’t know” scores. "
+                        "Add at least one numeric score in Step 4 to explore a scenario."
+                    )
+
+    # ---------------- RIGHT: Trade-off notes + optional visual ----------------
+    with col_right:
+        st.markdown("#### 2. Summarise the trade-offs")
+
+        project.tradeoff_notes = st.text_area(
+            "Notes",
+            value=project.tradeoff_notes,
+            height=180,
+            help=(
+                "Summarise: (1) which stage and factors you changed, "
+                "(2) how the scores moved, and "
+                "(3) the key trade-offs (what improves vs. what may worsen)."
+            ),
+        )
+
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+        # --- Export & report ---
+
+    # (If you don't already have .export-box CSS defined earlier in Step 5, add this once)
+    st.markdown(
         """
+        <style>
+        .export-box {
+            border: 1px solid #e4e4e7;
+            border-radius: 14px;
+            padding: 1rem 1.25rem 1.25rem 1.25rem;
+            margin-top: 1.25rem;
+            background: #fafafa;
+        }
+        .export-desc {
+            font-size: 0.9rem;
+            color: #4b5563;
+            margin-top: 0.1rem;
+            margin-bottom: 0.8rem;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
     )
 
-    project.tradeoff_notes = st.text_area(
-        "Notes on trade-offs and alternative scenarios",
-        value=project.tradeoff_notes,
-        height=220,
-        help=(
-            "Use this space to summarise: (1) which hotspots you focus on, "
-            "(2) what targeted changes or new scenarios you consider, and "
-            "(3) how these might improve or worsen other stages or factors."
-        ),
+    st.markdown("### 💾 Export & report")
+    st.markdown(
+        "<p class='export-desc'>Save the structured results for reuse, and download a human-readable "
+        "report for proposals, lab notebooks, or meeting notes.</p>",
+        unsafe_allow_html=True,
     )
 
-
-    # Export results
     export = {
         "project": project.name,
         "description": project.description,
@@ -1267,14 +1562,31 @@ elif step.startswith("5"):
         "lifecycle_stages": project.lifecycle_stages,
         "lifecycle_changed": project.lifecycle_changed,
         "selected_factors": project.selected_factors,
-        "grid": {stage:{f: asdict(fs) for f, fs in fdict.items()} for stage, fdict in project.grid.items()},
-        "averages": {"by_stage": avg_stage, "by_factor": avg_factor, "overall": overall},
-        "tradeoff_notes": project.tradeoff_notes,  # 👈 NEW
+        "grid": {
+            stage: {f: asdict(fs) for f, fs in fdict.items()}
+            for stage, fdict in project.grid.items()
+        },
+        "averages": {
+            "by_stage": avg_stage,
+            "by_factor": avg_factor,
+            "overall": overall,
+        },
+        "tradeoff_notes": project.tradeoff_notes,
     }
-    st.download_button("💾 Download results JSON", data=json.dumps(export, indent=2), file_name=f"{project.name.replace(' ','_')}_results.json", mime="application/json")
 
+    # Put the two exports side-by-side like small cards
+    c_json, c_md = st.columns(2)
 
-
+    with c_json:
+        st.markdown("**Results JSON**")
+        st.caption("For re-loading into SEED or running your own analysis.")
+        st.download_button(
+            "⬇️ Download JSON",
+            data=json.dumps(export, indent=2),
+            file_name=f"{project.name.replace(' ','_')}_results.json",
+            mime="application/json",
+            use_container_width=True,
+        )
 
     def report_md(
         project,
@@ -1299,16 +1611,24 @@ elif step.startswith("5"):
             lines.append(f"- {s}{chg}")
         lines.append("")
         lines.append("## Selected factors")
-        for cat in ("Environmental","Social","Economic"):
-            lines.append(f"**{cat}:** " + ", ".join(project.selected_factors.get(cat, [])))
+        for cat in ("Environmental", "Social", "Economic"):
+            lines.append(
+                f"**{cat}:** " + ", ".join(project.selected_factors.get(cat, []))
+            )
         lines.append("")
         lines.append("## Scores")
-        lines.append(f"- **Overall score:** {overall if overall is not None else 'n/a'}")
+        lines.append(
+            f"- **Overall score:** {overall if overall is not None else 'n/a'}"
+        )
         if avg_stage:
             lines.append("")
             lines.append("### Average by lifecycle stage")
-            valid_stage_avgs = {k: v for k, v in avg_stage.items() if not math.isnan(v)}
-            for k, v in sorted(valid_stage_avgs.items(), key=lambda x: x[1], reverse=True):
+            valid_stage_avgs_local = {
+                k: v for k, v in avg_stage.items() if not math.isnan(v)
+            }
+            for k, v in sorted(
+                valid_stage_avgs_local.items(), key=lambda x: x[1], reverse=True
+            ):
                 lines.append(f"- {k}: {v:.2f}")
 
         if avg_factor:
@@ -1316,16 +1636,30 @@ elif step.startswith("5"):
             lines.append("### Average by factor")
             for k, v in sorted(avg_factor.items(), key=lambda x: x[1], reverse=True):
                 lines.append(f"- {k}: {v:.2f}")
-        if valid_stage_avgs:
-            worst_stage, worst_val = min(valid_stage_avgs.items(), key=lambda kv: kv[1])
+
+        valid_stage_avgs_local = {
+            k: v for k, v in avg_stage.items() if not math.isnan(v)
+        }
+        if valid_stage_avgs_local:
+            worst_stage_local, worst_val_local = min(
+                valid_stage_avgs_local.items(), key=lambda kv: kv[1]
+            )
             lines.append("")
             lines.append("### Worst performing stage")
-            lines.append(f"- **{worst_stage}** (avg {worst_val:.2f} — {interp_label(worst_val)})")
-        lines.append("")
-        if valid_stage_avgs:
-            best_stage, best_val = max(valid_stage_avgs.items(), key=lambda kv: kv[1])
+            lines.append(
+                f"- **{worst_stage_local}** "
+                f"(avg {worst_val_local:.2f} — {interp_label(worst_val_local)})"
+            )
+            best_stage_local, best_val_local = max(
+                valid_stage_avgs_local.items(), key=lambda kv: kv[1]
+            )
+            lines.append("")
             lines.append("### Best performing stage")
-            lines.append(f"- **{best_stage}** (avg {best_val:.2f} — {interp_label(best_val)})")
+            lines.append(
+                f"- **{best_stage_local}** "
+                f"(avg {best_val_local:.2f} — {interp_label(best_val_local)})"
+            )
+
         lines.append("")
         if project.scoping_notes.strip():
             lines.append("## Notes")
@@ -1335,26 +1669,34 @@ elif step.startswith("5"):
             lines.append("## Trade-offs and alternative scenarios")
             lines.append(project.tradeoff_notes.strip())
             lines.append("")
-        lines.append("_Score guide — 1: Much Better • 2: Better • 3: Equal • 4: Worse • 5: Much Worse._")
+        lines.append(
+            "_Score guide — 1: Much Better • 2: Better • 3: Equal • 4: Worse • 5: Much Worse._"
+        )
         return "\n".join(lines)
-    
-    
 
-    # --- Report button lives here, AFTER overall/avg_* are defined ---
-    st.download_button(
-        "📄 Download Markdown report",
-        data=report_md(
-            project,
-            overall,
-            avg_stage,
-            avg_factor,
-            functional_unit=project.functional_unit,
-            core_function=project.core_function,
-        ),
-        file_name=f"{project.name.replace(' ','_')}_SEED_report.md",
-        mime="text/markdown",
-    )
+    with c_md:
+        st.markdown("**Markdown report**")
+        st.caption("Copy-paste into documents, proposals, or lab notebooks.")
+        st.download_button(
+            "📄 Download Markdown report",
+            data=report_md(
+                project,
+                overall,
+                avg_stage,
+                avg_factor,
+                functional_unit=project.functional_unit,
+                core_function=project.core_function,
+            ),
+            file_name=f"{project.name.replace(' ','_')}_SEED_report.md",
+            mime="text/markdown",
+            use_container_width=True,
+        )
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
     bottom_nav()
+
+
 
 
 
