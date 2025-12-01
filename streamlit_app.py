@@ -687,12 +687,17 @@ if step.startswith("1"):
 
 elif step.startswith("2"):
     st.subheader("Step 2 — Scoping and lifecycle")
-    st.write("The subtitles below are **not** stages. Add the **actual stages** under the relevant subtitle. Max total 7 stages.")
+    st.caption(
+        "Define the core function, functional unit, and a lean lifecycle with up to 7 stages."
+    )
+    st.markdown(
+        "The subtitles below (Product / Construction / Use / End of Life) are **not** stages. "
+        "Add your **actual stages** under the relevant subtitle. Max total **7 stages**."
+    )
 
     # ---------- Robust init for sections store ----------
     if "sections" not in st.session_state or not isinstance(st.session_state.sections, dict):
         st.session_state.sections = {t: [] for t in SECTION_TITLES}
-    # ensure every subtitle exists and is a list
     for _t in SECTION_TITLES:
         if not isinstance(st.session_state.sections.get(_t), list):
             st.session_state.sections[_t] = []
@@ -705,11 +710,8 @@ elif step.startswith("2"):
         "Use (B1–B5)",
         "End of Life (C1–C4, D)",
     ]
-
-    # Make SECTION_TITLES exactly match the canonical order (prevents KeyError)
     SECTION_TITLES = CANONICAL_SECTIONS
 
-    # Detailed labels from your document
     CODE_TO_LABEL = {
         "A0": "A0 - Pre-construction (design & non-physical activities) [UK]",
         "A1": "A1 - Raw Material Supply",
@@ -722,7 +724,6 @@ elif step.startswith("2"):
         "B3": "B3 - Repair",
         "B4": "B4 - Replacement",
         "B5": "B5 - Refurbishment",
-        # Not seeded by default, but defined for future toggles/migrations if needed:
         "B6": "B6 - Operational Energy Use",
         "B7": "B7 - Operational Water Use",
         "B8": "B8 - Operational Transport (NS3720/PAS2080/EN-17472)",
@@ -734,30 +735,25 @@ elif step.startswith("2"):
         "D":  "D - Reuse/Recovery/Recycling Potentials (beyond boundary)",
     }
 
-    
-
-    # Bucketing helper based on stage code
+    # Bucketing helper
     def _bucket_for_code(code: str) -> str:
         code = code.upper().strip()
         if code in ("A0","A1","A2","A3"):
-            return CANONICAL_SECTIONS[0]  # Product
+            return CANONICAL_SECTIONS[0]
         if code in ("A4","A5"):
-            return CANONICAL_SECTIONS[1]  # Construction
+            return CANONICAL_SECTIONS[1]
         if code in ("B1","B2","B3","B4","B5"):
-            return CANONICAL_SECTIONS[2]  # Use
+            return CANONICAL_SECTIONS[2]
         if code in ("C1","C2","C3","C4","D"):
-            return CANONICAL_SECTIONS[3]  # End of Life
+            return CANONICAL_SECTIONS[3]
         return CANONICAL_SECTIONS[0]
 
-    # Extract a stage code from any string like "A1", "A1 - ...", etc.
     import re
     def _code_from_name(name: str) -> str | None:
         m = re.match(r"^\s*([ABCD]\d?)\b", str(name).upper())
         return m.group(1) if m else None
-    
-    # ---------- Preload sections from the active project's lifecycle_stages (on import) ----------
+
     def _changed_flag_from_project(label: str) -> bool:
-        # prefer exact label, else match by stage code
         code = _code_from_name(label)
         if label in project.lifecycle_changed:
             return bool(project.lifecycle_changed[label])
@@ -770,21 +766,21 @@ elif step.startswith("2"):
         code = _code_from_name(name)
         return CODE_TO_LABEL.get(code, name)
 
-    # If buckets are empty but project already has stages, preload them
+    # ---------- Preload / seed sections ----------
     if all(len(v) == 0 for v in sections.values()) and getattr(project, "lifecycle_stages", []):
+        # Preload from existing project (e.g. imported)
         for stage in project.lifecycle_stages:
             label = _canonical_label(stage)
             bucket = _bucket_for_code(_code_from_name(stage))
             if label not in sections[bucket]:
                 sections[bucket].append(label)
             project.lifecycle_changed[label] = _changed_flag_from_project(stage)
-
-    # Else (truly new project), seed defaults once
     elif (
         not st.session_state.get("seeded_canon_labels", False)
         and not project.lifecycle_stages
         and all(len(v) == 0 for v in sections.values())
     ):
+        # Fresh project: seed defaults
         DEFAULT_PRODUCT = ["A1","A2","A3"]
         DEFAULT_CONSTR  = ["A4","A5"]
         DEFAULT_USE     = ["B1","B2","B3","B4","B5"]
@@ -801,9 +797,8 @@ elif step.startswith("2"):
         for c in DEFAULT_USE:      _add_unique(CANONICAL_SECTIONS[2], c)
         for c in DEFAULT_EOL:      _add_unique(CANONICAL_SECTIONS[3], c)
         st.session_state.seeded_canon_labels = True
-    
 
-    # If current session sections don’t match canonical titles, migrate everything
+    # Migrate if keys don’t match canonical titles
     if set(st.session_state.sections.keys()) != set(CANONICAL_SECTIONS):
         new_sections = {t: [] for t in CANONICAL_SECTIONS}
         for _, lst in st.session_state.sections.items():
@@ -813,19 +808,17 @@ elif step.startswith("2"):
                 label = CODE_TO_LABEL.get(code, s)
                 if label not in new_sections[bucket]:
                     new_sections[bucket].append(label)
-                # Default all migrated to not "will change" unless already set
                 if label not in project.lifecycle_changed:
                     project.lifecycle_changed[label] = False
         st.session_state.sections = new_sections
 
-    # Refresh local alias after migration & ensure all canonical keys exist
     sections = st.session_state.sections
     for t in CANONICAL_SECTIONS:
         sections.setdefault(t, [])
 
-    # ---------- Seed defaults once with detailed labels ----------
-    DEFAULT_PRODUCT = ["A1","A2","A3"]         # Product bucket
-    DEFAULT_CONSTR  = ["A4","A5"]              # Construction bucket
+    # ---------- Optional modules (A0 and D) ----------
+    DEFAULT_PRODUCT = ["A1","A2","A3"]
+    DEFAULT_CONSTR  = ["A4","A5"]
     DEFAULT_USE     = ["B1","B2","B3","B4","B5"]
     DEFAULT_EOL     = ["C1","C2","C3","C4"]
     OPTION_A0 = "A0"
@@ -835,22 +828,11 @@ elif step.startswith("2"):
         label = CODE_TO_LABEL.get(code, code)
         if label not in sections[bucket]:
             sections[bucket].append(label)
-        project.lifecycle_changed[label] = False  # never highlighted by default
+        project.lifecycle_changed[label] = False
 
-    # Seed only if everything is empty (no user content yet)
-    if (
-        not st.session_state.get("seeded_canon_labels", False)
-        and not project.lifecycle_stages
-        and all(len(v) == 0 for v in sections.values())
-    ):
-        for c in DEFAULT_PRODUCT:  _add_unique(CANONICAL_SECTIONS[0], c)
-        for c in DEFAULT_CONSTR:   _add_unique(CANONICAL_SECTIONS[1], c)
-        for c in DEFAULT_USE:      _add_unique(CANONICAL_SECTIONS[2], c)
-        for c in DEFAULT_EOL:      _add_unique(CANONICAL_SECTIONS[3], c)
-        st.session_state.seeded_canon_labels = True
-
-    # ---------- Optional modules (A0 and D) with detailed labels ----------
-    opt_cols = st.columns([3, 3])
+    st.markdown("### Lifecycle modules")
+    st.caption("Toggle optional modules if they are relevant for your system.")
+    opt_cols = st.columns(2)
     with opt_cols[0]:
         inc_a0 = st.checkbox("Include A0 (UK only)", value=False, key="inc_a0")
     with opt_cols[1]:
@@ -873,44 +855,44 @@ elif step.startswith("2"):
             sections[CANONICAL_SECTIONS[3]].remove(label_d)
             project.lifecycle_changed.pop(label_d, None)
 
-    # Give users headroom beyond defaults
-    MAX_TOTAL = max(30, MAX_TOTAL if 'MAX_TOTAL' in locals() else 30)
+    st.markdown("---")
 
-
-
-
-    # ---------- Scoping exercise (required) ----------
-    st.markdown("##### Scoping exercise (required before proceeding)")
-    st.markdown(
-        "Before using SEED, define the **core function** and a **functional unit**.\n\n"
-        "Prefer function-over-time, e.g. “A tire enabling **100,000 km** of travel with reduced maintenance.”"
+    # ---------- Scoping exercise (card-like, no HTML wrappers) ----------
+    st.markdown("### Scoping exercise (required)")
+    st.caption(
+        "Define the **core function** and a **functional unit** before scoring. "
+        "Prefer function-over-time, e.g. a product delivering performance over a given lifetime."
     )
 
-    PDF_PATH = pathlib.Path("scopingexercise.pdf")  # adjust if it's in a subfolder, e.g. Path("assets/scopingexercise.pdf")
-    try:
-        if PDF_PATH.exists():
-            with PDF_PATH.open("rb") as f:
-                st.download_button(
-                    "📥 Download help for the scoping exercise (PDF)",
-                    data=f.read(),
-                    file_name="scopingexercise.pdf",
-                    mime="application/pdf",
-                )
-        else:
-            st.info(f"Place **{PDF_PATH}** next to your app to enable the download button.")
-    except Exception as e:
-        st.warning(f"Couldn’t load the PDF: {e}")
+    PDF_PATH = pathlib.Path("scopingexercise.pdf")
+    sc1, sc2 = st.columns([2, 3])
+    with sc1:
+        try:
+            if PDF_PATH.exists():
+                with PDF_PATH.open("rb") as f:
+                    st.download_button(
+                        "📥 Download scoping help (PDF)",
+                        data=f.read(),
+                        file_name="scopingexercise.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                    )
+            else:
+                st.info("Place **scopingexercise.pdf** next to your app to enable the download.")
+        except Exception as e:
+            st.warning(f"Couldn’t load the PDF: {e}")
+    with sc2:
+        project.core_function = st.text_area(
+            "Core function (one sentence)",
+            value=project.core_function,
+            height=80,
+            placeholder=(
+                "e.g., The main function of the self-healing tire is to enable "
+                "100,000 km of safe travel with reduced maintenance."
+            ),
+        )
 
-    # --- Core function (keeps live-binding as you had) ---
-    project.core_function = st.text_area(
-        "Core function (one sentence)",
-        value=project.core_function,
-        height=80,
-        placeholder="e.g., The main function of the self-healing tire is to enable 100,000 km of safe travel with reduced maintenance.",
-    )
-
-    # --- Functional unit with explicit Save button ---
-    # Use a draft field in session state so typing doesn't overwrite the saved value
+    # Functional unit + save
     if "fu_draft" not in st.session_state:
         st.session_state.fu_draft = project.functional_unit
 
@@ -921,97 +903,116 @@ elif step.startswith("2"):
         key="functional_unit_draft_input",
     )
 
-    cols_fu = st.columns([1, 6])
+    cols_fu = st.columns([1, 5])
     with cols_fu[0]:
         if st.button("💾 Save", key="save_fu_btn", use_container_width=True):
             project.functional_unit = (st.session_state.fu_draft or "").strip()
-            # recompute the gate immediately
             st.session_state.scoping_done = scoping_is_done(project)
             st.success("Functional unit saved.")
             st.rerun()
     with cols_fu[1]:
-        st.caption(f"Saved value: **{project.functional_unit or '— (none saved yet) —'}**")
+        st.caption(
+            f"Saved value: **{project.functional_unit or '— (none saved yet) —'}**"
+        )
 
+    st.markdown("---")
 
-
-
-    # ---------- Helpers ----------
+    # ---------- Lifecycle stages (expanders per subtitle) ----------
     MAX_TOTAL = 7
     def total_count() -> int:
         return sum(len(v) for v in sections.values())
 
-    # ---------- Per-subtitle stage editor ----------
+    st.markdown("### Lifecycle stages")
+    st.caption(
+        "Aim for a lean description (max 7 stages in total). "
+        "Tick **Will change?** for the stages most affected by your new material or technology."
+    )
+
     for sec_idx, title in enumerate(SECTION_TITLES):
-        safe = f"sec{sec_idx}"  # unique, stable key prefix for this section
-        st.markdown(f"#### {title}")
-        lst = sections[title]   # the actual list of stages under this subtitle
+        safe = f"sec{sec_idx}"
+        lst = sections[title]
 
-        # Existing rows
-        for i, name in enumerate(list(lst)):  # list(...) to avoid issues if we pop during iteration
-            cols = st.columns([6, 2, 2, 2, 2])
-            # rename
-            new_name = cols[0].text_input("Stage name", value=name, key=f"{safe}_name_{i}")
-            # will change?
-            will_change = project.lifecycle_changed.get(name, False)
-            new_change = cols[1].checkbox("Will change?", value=will_change, key=f"{safe}_chg_{i}")
+        with st.expander(title, expanded=(sec_idx == 0)):
+            # Existing rows
+            for i, name in enumerate(list(lst)):
+                cols = st.columns([5, 2, 1, 1, 1])
+                new_name = cols[0].text_input(
+                    "Stage name",
+                    value=name,
+                    key=f"{safe}_name_{i}",
+                )
+                will_change = project.lifecycle_changed.get(name, False)
+                new_change = cols[1].checkbox(
+                    "Will change?",
+                    value=will_change,
+                    key=f"{safe}_chg_{i}",
+                )
 
-            # move up
-            if cols[2].button("⬆️", key=f"{safe}_up_{i}") and i > 0:
-                lst[i-1], lst[i] = lst[i], lst[i-1]
-                st.rerun()
-            # move down
-            if cols[3].button("⬇️", key=f"{safe}_dn_{i}") and i < len(lst)-1:
-                lst[i+1], lst[i] = lst[i], lst[i+1]
-                st.rerun()
-            # delete
-            if cols[4].button("🗑️", key=f"{safe}_del_{i}"):
-                project.lifecycle_changed.pop(name, None)
-                lst.pop(i)
-                st.rerun()
+                # move up
+                if cols[2].button("⬆️", key=f"{safe}_up_{i}") and i > 0:
+                    lst[i-1], lst[i] = lst[i], lst[i-1]
+                    st.rerun()
+                # move down
+                if cols[3].button("⬇️", key=f"{safe}_dn_{i}") and i < len(lst)-1:
+                    lst[i+1], lst[i] = lst[i], lst[i+1]
+                    st.rerun()
+                # delete
+                if cols[4].button("🗑️", key=f"{safe}_del_{i}"):
+                    project.lifecycle_changed.pop(name, None)
+                    lst.pop(i)
+                    st.rerun()
 
-            # write back rename + change flag (handle rename)
-            if new_name != name:
-                # carry the change flag to the new name
-                project.lifecycle_changed[new_name] = new_change
-                project.lifecycle_changed.pop(name, None)
-                lst[i] = new_name
-            else:
-                project.lifecycle_changed[name] = new_change
-                lst[i] = name
+                # write back rename + change flag
+                if new_name != name:
+                    project.lifecycle_changed[new_name] = new_change
+                    project.lifecycle_changed.pop(name, None)
+                    lst[i] = new_name
+                else:
+                    project.lifecycle_changed[name] = new_change
+                    lst[i] = name
 
-        # Add a new stage within this subtitle
-        add_cols = st.columns([6, 2, 2])
-        add_name = add_cols[0].text_input(f"➕ Add stage in {title}", key=f"{safe}_add_name")
-        add_change = add_cols[1].checkbox("Will change?", key=f"{safe}_add_chg")
-        if add_cols[2].button("Add stage", key=f"{safe}_add_btn"):
-            if not add_name.strip():
-                st.warning("Please enter a stage name.")
-            elif total_count() >= MAX_TOTAL:
-                st.warning(f"Max {MAX_TOTAL} stages in total.")
-            else:
-                nm = add_name.strip()
-                lst.append(nm)
-                project.lifecycle_changed[nm] = add_change
-                st.rerun()
+            st.caption("Add or adjust stages under this heading as needed.")
 
-        st.markdown("---")
+            # Add new stage
+            add_cols = st.columns([5, 2, 1.5])
+            add_name = add_cols[0].text_input(
+                f"➕ Add stage in {title}",
+                key=f"{safe}_add_name",
+            )
+            add_change = add_cols[1].checkbox(
+                "Will change?",
+                key=f"{safe}_add_chg",
+            )
+            if add_cols[2].button("Add", key=f"{safe}_add_btn"):
+                if not add_name.strip():
+                    st.warning("Please enter a stage name.")
+                elif total_count() >= MAX_TOTAL:
+                    st.warning(f"Max {MAX_TOTAL} stages in total.")
+                else:
+                    nm = add_name.strip()
+                    lst.append(nm)
+                    project.lifecycle_changed[nm] = add_change
+                    st.rerun()
 
     # ---------- Flatten to legacy fields used by steps 3–5 ----------
     project.lifecycle_stages = [nm for t in SECTION_TITLES for nm in sections[t]]
-    # Clean any stale flags
-    project.lifecycle_changed = {k: v for k, v in project.lifecycle_changed.items() if k in project.lifecycle_stages}
+    project.lifecycle_changed = {
+        k: v for k, v in project.lifecycle_changed.items()
+        if k in project.lifecycle_stages
+    }
 
-    # ---------- Status + utilities ----------
-    st.metric("Total stages", len(project.lifecycle_stages))
-
-    ucols = st.columns(2)
-    with ucols[0]:
-        if st.button("↺ Reset all stages"):
+    # ---------- Status & notes ----------
+    st.markdown("---")
+    status_cols = st.columns([1, 2])
+    with status_cols[0]:
+        st.metric("Total stages", len(project.lifecycle_stages))
+        if st.button("↺ Reset all stages", use_container_width=True):
             st.session_state.sections = {t: [] for t in SECTION_TITLES}
             project.lifecycle_stages = []
             project.lifecycle_changed = {}
             st.rerun()
-    with ucols[1]:
+
+    with status_cols[1]:
         project.scoping_notes = st.text_area(
             "Notes (sources, assumptions, scope boundaries)",
             value=project.scoping_notes,
@@ -1019,16 +1020,20 @@ elif step.startswith("2"):
             key="scoping_notes",
         )
 
-    # Gate / status (no need to set a flag here; we already compute it globally)
     if st.session_state.scoping_done:
-        st.success("Scoping complete ✅  (Functional unit provided and at least one stage added.)")
+        st.success(
+            "Scoping complete ✅  (Functional unit provided and at least one stage added.)"
+        )
     else:
         missing = []
         if not project.functional_unit.strip():
             missing.append("functional unit")
         if not project.lifecycle_stages:
             missing.append("≥ 1 stage")
-        st.warning("Please provide: " + " and ".join(missing) + " before moving to Step 3.")
+        st.warning(
+            "Please provide: " + " and ".join(missing) + " before moving to Step 3."
+        )
+
     bottom_nav()
 
 
@@ -1401,21 +1406,24 @@ elif step.startswith("5"):
                 reset_col1, reset_col2 = st.columns([1, 1])
 
                 with reset_col1:
-                    st.button(
+                    if st.button(
                         "🔄 Reset this stage",
                         key=f"reset_scen_{stage_choice}",
                         use_container_width=True,
                         type="secondary",
-                    )
+                    ):
+                        project.scenario_scores.pop(stage_choice, None)
+                        st.rerun()
 
                 with reset_col2:
-                    st.button(
+                    if st.button(
                         "🧹 Reset all scenarios",
                         key="reset_scen_all",
                         use_container_width=True,
                         type="secondary",
-                    )
-
+                    ):
+                        project.scenario_scores = {}
+                        st.rerun()
 
                 # 2) Scenario sliders per factor (write back into stage_scen / project.scenario_scores)
                 cols = st.columns(3)
@@ -1442,7 +1450,6 @@ elif step.startswith("5"):
                         stage_scen[fname] = float(new_val)
 
                 # 3) Recompute scenario averages across *all* changed stages
-                #    (this is the key for multi-stage trade-offs)
                 scenario_avg_stage = dict(avg_stage)  # start from baseline
 
                 for stg, fac_scores in project.scenario_scores.items():
@@ -1465,6 +1472,21 @@ elif step.startswith("5"):
                 scenario_stage_mean = scenario_avg_stage.get(
                     stage_choice, float("nan")
                 )
+
+                # ✅ NEW: scenario averages by factor (taking overrides into account)
+                scenario_factor_values: Dict[str, List[float]] = {}
+                for stg, facs in project.grid.items():
+                    scen_for_stage = project.scenario_scores.get(stg, {})
+                    for fname, fs in facs.items():
+                        # If there is a scenario score for this (stage, factor), use it; otherwise baseline
+                        val = scen_for_stage.get(fname, fs.score)
+                        if val is None:
+                            continue
+                        scenario_factor_values.setdefault(fname, []).append(float(val))
+
+                scenario_avg_factor: Dict[str, float] = {
+                    f: statistics.mean(vals) for f, vals in scenario_factor_values.items()
+                }
 
                 # 4) Show metrics side-by-side
                 mc1, mc2, mc3 = st.columns(3)
@@ -1509,7 +1531,7 @@ elif step.startswith("5"):
                         delta=delta_stage,
                     )
 
-                # 5) Updated stage plot with all scenario changes applied
+                # 5) Updated plots with all scenario changes applied
                 scenario_stage_df = pd.DataFrame(
                     {
                         "Lifecycle stage": list(scenario_avg_stage.keys()),
@@ -1525,18 +1547,55 @@ elif step.startswith("5"):
                     "Average score",
                 ).rename(columns={"Lifecycle stage": "Category"})
 
-                st.markdown("##### Scenario vs. current — by lifecycle stage")
-                st.caption(
-                    "Bars use scenario scores for all stages you edited and baseline "
-                    "scores for the others."
+                scenario_factor_df = pd.DataFrame(
+                    {
+                        "Factor": list(scenario_avg_factor.keys()),
+                        "Average score": [
+                            round(v, 2) for v in scenario_avg_factor.values()
+                        ],
+                    }
                 )
-                st.plotly_chart(
-                    horizontal_delta_bar(
-                        scenario_stage_plot,
-                        "Scenario average by lifecycle stage",
-                    ),
-                    use_container_width=True,
+                scenario_factor_plot = to_plot_df(
+                    scenario_factor_df,
+                    "Factor",
+                    "Average score",
+                ).rename(columns={"Factor": "Category"})
+
+                # ✅ NEW: tabs for scenario by factor / by stage
+                tab_s_factor, tab_s_stage = st.tabs(
+                    ["Scenario by factor", "Scenario by lifecycle stage"]
                 )
+
+                with tab_s_stage:
+                    st.markdown("##### Scenario vs. current — by lifecycle stage")
+                    st.caption(
+                        "Bars use scenario scores for all stages you edited and baseline "
+                        "scores for the others."
+                    )
+                    st.plotly_chart(
+                        horizontal_delta_bar(
+                            scenario_stage_plot,
+                            "Scenario average by lifecycle stage",
+                        ),
+                        use_container_width=True,
+                    )
+                    st.dataframe(scenario_stage_df, use_container_width=True)
+
+                with tab_s_factor:
+                    st.markdown("##### Scenario vs. current — by factor")
+                    st.caption(
+                        "Factor averages using scenario scores where you changed them, "
+                        "and baseline scores elsewhere."
+                    )
+                    st.plotly_chart(
+                        horizontal_delta_bar(
+                            scenario_factor_plot,
+                            "Scenario average by factor",
+                        ),
+                        use_container_width=True,
+                    )
+                    st.dataframe(scenario_factor_df, use_container_width=True)
+
 
 
     # ---------------- RIGHT: Trade-off notes + optional visual ----------------
