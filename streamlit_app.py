@@ -13,6 +13,8 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import pathlib
+import plotly.graph_objects as go
+import numpy as np
 
 APP_TITLE = "SEED — Sustainability Evaluation for Early-stage Decisions"
 APP_TAGLINE = "Project-based scoping for new materials & products"
@@ -225,6 +227,13 @@ ECON_FACTOR_META = {
     "Chance on subsidies": "Likelihood of public funding/incentives.",
 }
 
+SCORE_COLORS = {
+    "good":  "#2e7d32",  # green
+    "bad":   "#c62828",  # red
+    "mixed": "#f57c00",  # orange
+    "na":    "#9e9e9e",  # grey
+}
+
 # -------------------------------
 # Data model
 # -------------------------------
@@ -232,6 +241,7 @@ ECON_FACTOR_META = {
 class FactorScore:
     score: Optional[float] = None   # None = “I don’t know”
     note: str = ""
+    to_research: bool = False # flag for “needs more research”
 
 @dataclass
 class Project:
@@ -247,6 +257,8 @@ class Project:
     functional_unit: str = ""
     tradeoff_notes: str = ""
     scenario_scores: Dict[str, Dict[str, float]] = field(default_factory=dict)
+    
+    assumptions: List[str] = field(default_factory=list)
 
     # --- restore this! ---
     def ensure_grid(self, all_factors: List[str]) -> None:
@@ -300,6 +312,13 @@ import pandas as pd
 import random
 import re
 
+def hex_to_rgba(hex_color: str, alpha: float) -> str:
+    hex_color = hex_color.lstrip("#")
+    r = int(hex_color[0:2], 16)
+    g = int(hex_color[2:4], 16)
+    b = int(hex_color[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
 def _new_project_name(base="New SEED Project"):
     # create a unique default project name if the user clicks the CTA
     existing = set(st.session_state.get("projects", {}).keys())
@@ -347,22 +366,22 @@ def render_landing():
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown("<div class='hero'>", unsafe_allow_html=True)
-    st.markdown(
-        "<div class='muted'>A qualitative, actor-driven scoping tool for low-TRL projects — "
-        "to reason about sustainability trade-offs before a full LCA is feasible.</div>",
-        unsafe_allow_html=True,
-    )
+    # st.markdown("<div class='hero'>", unsafe_allow_html=True)
+    # st.markdown(
+    #     "<div class='muted'>A qualitative, actor-driven scoping tool for low-TRL projects — "
+    #     "to reason about sustainability trade-offs before a full LCA is feasible.</div>",
+    #     unsafe_allow_html=True,
+    # )
 
-    # Pills
-    st.markdown(
-        "<div class='pill'>Low TRL focus</div>"
-        "<div class='pill'>Qualitative assessment</div>"
-        "<div class='pill'>Trade-offs & hot-spots</div>"
-        "<div class='pill'>Alternative scenarios</div>",
-        unsafe_allow_html=True,
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
+    # # Pills
+    # st.markdown(
+    #     "<div class='pill'>Low TRL focus</div>"
+    #     "<div class='pill'>Qualitative assessment</div>"
+    #     "<div class='pill'>Trade-offs & hot-spots</div>"
+    #     "<div class='pill'>Alternative scenarios</div>",
+    #     unsafe_allow_html=True,
+    # )
+    # st.markdown("</div>", unsafe_allow_html=True)
 
     c1, c2 = st.columns([3, 2], gap="large")
 
@@ -398,35 +417,49 @@ def render_landing():
     st.markdown("#### How it works")
     st.caption("Take your time to go through the tool to understand the stages before gathering your stakeholders. Use the example file on windmill blades to go through the tool.")
     # Example file download (unchanged)
-    example_path = pathlib.Path("recyclable_windmill_blades.json")
-    if example_path.exists():
-        with open(example_path, "rb") as f:
-            st.download_button(
-                "📥 Download example project: Recyclable windmill blades",
-                data=f.read(),
-                file_name="recyclable_windmill_blades.json",
-                mime="application/json",
-            )
-    else:
-        st.info("Place `recyclable_windmill_blades.json` in the app folder to enable the example project download.")
 
     cc1, cc2, cc3 = st.columns(3)
     with cc1:
-        st.markdown("##### 1) TRL & actors")
+        st.markdown("##### Step 1: TRL & actors")
         st.info("Identify TRL and **who to involve** (devs, experts, industry, etc.).")
+        st.info("")
     with cc2:
-        st.markdown("##### 2) Scoping & lifecycle")
+        st.markdown("##### Step 2: Scoping & lifecycle")
         st.info("Define **core function** and **functional unit**; map a **lean lifecycle**.")
+        st.info("")
     with cc3:
-        st.markdown("##### 3–5) Factors → Scores → Hot-spots")
+        st.markdown("##### Step 3: Factors → Scores → Hot-spots")
         st.info(
-            "Pick 3 factors per pillar, score 1–5 vs baseline, review **worst stages**, "
-            "and use them as input for a **trade-off discussion on alternative scenarios**."
+            "Pick 3 factors per pillar (Environmental, Social, Economic). "
         )
+        st.info("")
+    cc4, cc5, cc6 = st.columns(3)
+    with cc4:
+        st.markdown("##### Step 4: Scoring the system")
+        st.info("Score each factor at each lifecycle stage (1=Measurably Worse ... 5=Measurably Better).")
+        st.info("")
+    with cc5:
+        st.markdown("##### Step 5: Results & plots")
+        st.info("See average scores per stage & factor, identify hot-spots, and explore trade-offs.")
+        st.info("")
+    with cc6:
+        st.markdown("##### Example project")
+        with st.expander("Download example project file"):
+            example_path = pathlib.Path("recyclable_windmill_blades.json")
+            if example_path.exists():
+                with open(example_path, "rb") as f:
+                    st.download_button(
+                        "📥 Download example project: Recyclable windmill blades",
+                        data=f.read(),
+                        file_name="recyclable_windmill_blades.json",
+                        mime="application/json",
+                    )
+            else:
+                st.info("Place `recyclable_windmill_blades.json` in the app folder to enable the example project download.")
 
 
     st.markdown("---")
-    cta1, cta2 = st.columns([1, 3])
+    cta1, cta2 = st.columns([1, 1])
 
     # ➕ Create new
     with cta1:
@@ -505,11 +538,17 @@ def factor_names(factors):
     return [f["name"] for f in factors]
 
 def score_band_color(score: float) -> str:
+    if score is None or (isinstance(score, float) and math.isnan(score)):
+        return SCORE_COLORS["na"]
+
     if score > 3.5:
-        return "#2e7d32"  # green
+        return SCORE_COLORS["good"]
     if score < 2.5:
-        return "#c62828"  # red
-    return "#f57c00"      # orange
+        return SCORE_COLORS["bad"]
+
+    return SCORE_COLORS["mixed"]
+
+
 
 def to_plot_df(df: pd.DataFrame, cat_col: str, val_col: str) -> pd.DataFrame:
     out = df.copy()
@@ -532,11 +571,11 @@ def horizontal_delta_bar(plot_df: pd.DataFrame, title: str):
     )
     # Axis: show original score ticks (1..5) mapped onto delta (-2..2)
     fig.update_xaxes(
-        range=[-2, 2],
+        range=[-2.3, 2.3],
         tickmode="array",
         tickvals=[-2, -1, 0, 1, 2],
-        ticktext=["1", "2", "3", "4", "5"],
-        title="Score (baseline = 3)"
+        ticktext=["Measurably Worse", "Possibly Worse", "Similar to Baseline", "Possibly Better", "Significantly Better"],
+        title="Performance compared to baseline (3 = Equal)"
     )
     fig.update_yaxes(title="")
     # Styling
@@ -549,11 +588,6 @@ def horizontal_delta_bar(plot_df: pd.DataFrame, title: str):
     )
     # Baseline at 0 (i.e., score 3)
     fig.add_vline(x=0, line_dash="dash", line_color="#666", opacity=0.7)
-    fig.add_annotation(
-        x=0, y=1.02, xref="x", yref="paper",
-        text="Baseline (= 3)",
-        showarrow=False, font=dict(size=11, color="#666")
-    )
     fig.update_layout(
         title=title,
         margin=dict(t=30, r=10, b=20, l=10),
@@ -579,6 +613,352 @@ def download_json_button(obj, filename, label):
         file_name=filename,
         mime="application/json"
     )
+
+def assumptions_sidebar_block(project, coral_hex="#FF6F61"):
+    # state
+    st.session_state.setdefault("assumptions_open", False)
+    st.session_state.setdefault("assumption_input", "")
+
+    # CSS: only affect buttons inside this block
+    st.markdown(
+        f"""
+        <style>
+        div.assumptions-box div[data-testid="stButton"] > button {{
+            background: {coral_hex} !important;
+            color: #fff !important;
+            border: 0 !important;
+            border-radius: 999px !important;
+            font-weight: 700 !important;
+            width: 100% !important;
+        }}
+        div.assumptions-box div[data-testid="stButton"] > button:hover {{
+            filter: brightness(0.95);
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    def _save_assumption():
+        text = (st.session_state.get("assumption_input") or "").strip()
+        if not text:
+            return
+        # ensure field exists (for older loaded projects)
+        if not hasattr(project, "assumptions") or project.assumptions is None:
+            project.assumptions = []
+        project.assumptions.append(text)
+        st.session_state["assumption_input"] = ""
+
+    st.markdown('<div class="assumptions-box">', unsafe_allow_html=True)
+
+    if st.button("+ Add assumptions", key="assumptions_toggle",type="primary"): 
+        st.session_state["assumptions_open"] = not st.session_state["assumptions_open"]
+
+    if st.session_state["assumptions_open"]:
+        if getattr(project, "assumptions", None):
+            st.caption("Saved assumptions")
+            for i, a in enumerate(project.assumptions, start=1):
+                st.markdown(f"{i}. {a}")
+        else:
+            st.caption("No assumptions yet.")
+
+        st.text_input(
+            "New assumption (press Enter)",
+            key="assumption_input",
+            on_change=_save_assumption,
+            label_visibility="visible",
+        )
+
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Close", key="assumptions_close"):
+                st.session_state["assumptions_open"] = False
+        with c2:
+            if st.button("Undo last", key="assumptions_undo") and getattr(project, "assumptions", None):
+                project.assumptions.pop()
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+def collect_to_research(project) -> Dict[str, List[str]]:
+    out = {}
+    for stage, fdict in project.grid.items():
+        pending = [f for f, fs in fdict.items() if getattr(fs, "to_research", False)]
+        if pending:
+            out[stage] = pending
+    return out
+
+def category_means(project, avg_factor: dict) -> dict:
+    out = {}
+    for cat in ("Environmental", "Social", "Economic"):
+        factors = project.selected_factors.get(cat, [])
+        vals = [avg_factor[f] for f in factors if f in avg_factor and not math.isnan(avg_factor[f])]
+        out[cat] = (sum(vals) / len(vals)) if vals else float("nan")
+    return out
+
+def seed_flower_overlay(baseline_cat_avg: dict, scenario_cat_avg: dict,
+                        title="Trade-offs overlay: baseline vs scenario",
+                        color_by="baseline"):
+    cats = ["Environmental", "Social", "Economic"]
+    theta_centers = {"Environmental": 90, "Social": 210, "Economic": 330}
+
+    def score_to_radius(score):
+        # Higher score -> longer petal (your current choice)
+        if score is None or (isinstance(score, float) and math.isnan(score)):
+            return 0.0
+        return max(0.0, min(1.0, (score - 1) / 4))
+
+    def petal_trace(cat, score, fillcolor, opacity=0.55):
+        r_max = score_to_radius(score)
+
+        width = 40
+        thetas = np.linspace(theta_centers[cat] - width, theta_centers[cat] + width, 121)
+
+        bump = (np.cos(np.deg2rad((thetas - theta_centers[cat]) * (90/width))) + 1) / 2
+        radii = r_max * (0.15 + 0.85 * bump)
+
+        theta_closed = np.concatenate([thetas, thetas[::-1]])
+        r_closed = np.concatenate([radii, np.zeros_like(radii)])
+
+        return go.Scatterpolar(
+            r=r_closed,
+            theta=theta_closed,
+            mode="lines",                 # keep geometry; outline removed via width=0
+            line=dict(width=0),           # ✅ no outline
+            fill="toself",
+            fillcolor=fillcolor,
+            opacity=opacity,
+            hovertemplate=f"<b>{cat}</b><br>avg {('n/a' if score is None or (isinstance(score,float) and math.isnan(score)) else f'{score:.2f}')}"
+                          "<extra></extra>",
+            showlegend=False,
+        )
+
+    fig = go.Figure()
+
+    # baseline ring (score=3 => r=0.5)
+    fig.add_trace(go.Scatterpolar(
+        r=[0.5]*361,
+        theta=list(range(0, 361)),
+        mode="lines",
+        line=dict(width=1, dash="dot", color="rgba(0,0,0,0.35)"),
+        hoverinfo="skip",
+        showlegend=False,
+    ))
+
+    # 1) Scenario underlay petals (lighter)
+    for cat in cats:
+        s_score = scenario_cat_avg.get(cat, float("nan"))
+        base_for_color = baseline_cat_avg.get(cat, float("nan")) if color_by == "baseline" else s_score
+        fig.add_trace(petal_trace(
+            cat=cat,
+            score=s_score,
+            fillcolor=hex_to_rgba(score_band_color(base_for_color), 0.30),  # underlay lighter
+            opacity=1.0,
+        ))
+
+    # 2) Baseline overlay petals (stronger)
+    for cat in cats:
+        b_score = baseline_cat_avg.get(cat, float("nan"))
+        base_for_color = b_score if color_by == "baseline" else scenario_cat_avg.get(cat, float("nan"))
+        fig.add_trace(petal_trace(
+            cat=cat,
+            score=b_score,
+            fillcolor=hex_to_rgba(score_band_color(base_for_color), 0.55),  # overlay stronger
+            opacity=1.0,
+        ))
+
+        # ✅ Grey dot at baseline tip (always on top)
+        r_tip = score_to_radius(b_score)
+        fig.add_trace(go.Scatterpolar(
+            r=[r_tip],
+            theta=[theta_centers[cat]],
+            mode="markers",
+            marker=dict(size=10, color="#6b7280", line=dict(width=0)),
+            hovertemplate=f"<b>{cat}</b><br>baseline avg {('n/a' if b_score is None or (isinstance(b_score,float) and math.isnan(b_score)) else f'{b_score:.2f}')}"
+                          "<extra></extra>",
+            showlegend=False,
+        ))
+
+    fig.update_layout(
+        title=title,
+        polar=dict(
+            radialaxis=dict(
+                range=[0, 1],
+                tickmode="array",
+                tickvals=[0.0, 0.5, 1.0],
+                ticktext=["1", "3", "5"],   # (your semantics shown; adjust if you want)
+                showline=False,
+            ),
+            angularaxis=dict(
+                tickmode="array",
+                tickvals=[theta_centers[c] for c in cats],
+                ticktext=cats,
+                tickfont=dict(size=17, color="black", family="Arial Black, Arial, sans-serif"),
+                ticklabelstep=1,
+                ticklen=8,
+                rotation=90,
+                direction="clockwise",
+            ),
+        ),
+        margin=dict(t=60, r=30, b=30, l=30),
+    )
+
+    return fig
+
+def seed_flower_petal_chart(category_avg: dict, title=""):
+    cats = ["Environmental", "Social", "Economic"]
+    theta_centers = {
+        "Environmental": 90,
+        "Social": 210,
+        "Economic": 330,
+    }
+
+    def score_to_radius(score):
+        if score is None or (isinstance(score, float) and math.isnan(score)):
+            return 0.0
+        return max(0.0, min(1.0, (score - 1) / 4))
+
+    fig = go.Figure()
+
+    # Baseline ring (score=3 => r=0.5)
+    fig.add_trace(go.Scatterpolar(
+        r=[0.5]*361,
+        theta=list(range(0, 361)),
+        mode="lines",
+        line=dict(width=2, dash="dash"),
+        hoverinfo="skip",
+        showlegend=False,
+    ))
+
+    # Add three petals
+    for cat in cats:
+        score = category_avg.get(cat, float("nan"))
+        r_max = score_to_radius(score)
+        fill = petal_color(score)
+
+        # Build a lobe: angles around the center (±40 degrees)
+        width = 40
+        thetas = np.linspace(theta_centers[cat] - width, theta_centers[cat] + width, 121)
+
+        # Petal shape: smooth bump peaking at center, tapering at edges
+        # cos() bump -> 0 at edges, 1 at center
+        bump = (np.cos(np.deg2rad((thetas - theta_centers[cat]) * (90/width))) + 1) / 2
+        radii = r_max * (0.15 + 0.85 * bump)  # leave a small base so petal is visible even when short
+
+        # Close the shape back to center so it fills like a petal
+        theta_closed = np.concatenate([thetas, thetas[::-1]])
+        r_closed = np.concatenate([radii, np.zeros_like(radii)])
+
+        delta = None if (score is None or (isinstance(score,float) and math.isnan(score))) else (3 - score)
+        sign = "" if (delta is None or delta < 0) else "+"
+
+        hover = (
+            f"<b>{cat}</b><br>"
+            + ("avg n/a" if delta is None else f"avg {score:.2f} ({sign}{delta:.2f} vs 3)")
+            + "<extra></extra>"
+        )
+
+        fig.add_trace(go.Scatterpolar(
+            r=r_closed,
+            theta=theta_closed,
+            mode="lines",
+            line=dict(width=0),        # ← no outline
+            fill="toself",
+            fillcolor=fill,
+            hovertemplate=hover,
+            showlegend=False,
+        ))
+
+        # Marker at the petal tip for readability
+        fig.add_trace(go.Scatterpolar(
+            r=[r_max],
+            theta=[theta_centers[cat]],
+            mode="markers+text",
+            marker=dict(
+                size=10,
+                color="#6b7280",        # neutral grey
+                line=dict(width=0),
+            ),
+            textposition="top center",
+            hovertemplate=hover,
+            showlegend=False,
+        ))
+
+    fig.update_layout(
+        title=title,
+        polar=dict(
+            radialaxis=dict(
+                range=[0, 1],
+                tickmode="array",
+                tickvals=[0.0, 0.5, 1.0],
+                ticktext=["5", "3", "1"],
+                showline=False,
+            ),
+            angularaxis=dict(
+                tickmode="array",
+                tickvals=[theta_centers[c] for c in cats],
+                ticktext=cats,
+                tickfont=dict(
+                    size=16,          # ← make bigger
+                    color="black",    # ← make black
+                    family="Arial, sans-serif",  # optional
+                    ),
+                rotation=90,
+                direction="clockwise",
+            ),
+        ),
+        margin=dict(t=60, r=30, b=30, l=30),
+    )
+
+    return fig
+
+def petal_color(score: float) -> str:
+    if score is None or (isinstance(score, float) and math.isnan(score)):
+        return hex_to_rgba(SCORE_COLORS["na"], 0.35)
+
+    if score > 3.5:
+        return hex_to_rgba(SCORE_COLORS["good"], 0.55)
+    if score < 2.5:
+        return hex_to_rgba(SCORE_COLORS["bad"], 0.55)
+
+    return hex_to_rgba(SCORE_COLORS["mixed"], 0.55)
+
+
+def overlay_delta_bars(baseline_plot_df: pd.DataFrame, scenario_plot_df: pd.DataFrame, title: str):
+    # assumes both have columns: Category, Delta, Score
+    b = baseline_plot_df.copy().set_index("Category")
+    s = scenario_plot_df.copy().set_index("Category")
+    cats = list(b.index.union(s.index))
+
+    fig = go.Figure()
+
+    # scenario first (underlay)
+    fig.add_trace(go.Bar(
+        x=[s.loc[c, "Delta"] if c in s.index else 0 for c in cats],
+        y=cats,
+        orientation="h",
+        opacity=0.30,
+        name="Scenario",
+    ))
+
+    # baseline on top (overlay)
+    fig.add_trace(go.Bar(
+        x=[b.loc[c, "Delta"] if c in b.index else 0 for c in cats],
+        y=cats,
+        orientation="h",
+        opacity=0.80,
+        name="Baseline",
+    ))
+
+    fig.add_vline(x=0, line_dash="dash", line_color="rgba(0,0,0,0.45)")
+    fig.update_layout(
+        barmode="overlay",
+        title=title,
+        margin=dict(t=30, r=10, b=20, l=10),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    )
+    fig.update_xaxes(range=[-2.3, 2.3])
+    fig.update_yaxes(title="")
+    return fig
 
 # -------------------------------
 # State init
@@ -608,9 +988,14 @@ with st.sidebar:
 
         st.markdown("---")
         st.caption("Active project")
-        st.write(f"**{ap.name}**")  # <- guaranteed to be the Project.name
+        st.write(f"**{ap.name}**")
         if ap.description:
             st.caption(ap.description)
+
+        # ✅ NEW: assumptions UI (sidebar)
+        st.markdown("---")
+        assumptions_sidebar_block(ap, coral_hex="#FF6F61")  # <- set your coral here
+        st.markdown("---")
 
         download_json_button(asdict(ap), f"{ap.name.replace(' ','_')}.json", "💾 Export active project")
         st.markdown("---")
@@ -619,12 +1004,27 @@ with st.sidebar:
 
 
 
-# -------------------------------
-# Header & guard
-# -------------------------------
 st.set_page_config(page_title="SEED", page_icon="🌱", layout="wide")
-st.title(f"🌿 {APP_TITLE}")
-st.caption(APP_TAGLINE)
+
+st.markdown(
+    """
+    <style>
+    .block-container { padding-top: 1.0rem; }
+    header[data-testid="stHeader"] { display: none; }
+    footer { display: none; }
+    .seed-header { display:flex; justify-content:center; margin: 0.25rem 0; }
+    .seed-header svg { height: 194px; width:auto; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+svg_path = pathlib.Path("assets/seed_logo.svg")
+svg_markup = svg_path.read_text(encoding="utf-8")
+
+st.markdown(f'<div class="seed-header">{svg_markup}</div>', unsafe_allow_html=True)
+#st.markdown(f'<div class="seed-tagline">{APP_TAGLINE}</div>', unsafe_allow_html=True)
+# .seed-tagline { text-align:center; color: rgba(0,0,0,0.6); margin: 0.25rem 0 1.0rem 0; }
 
 if st.session_state.active_project is None:
     render_landing()
@@ -667,14 +1067,14 @@ if step.startswith("1"):
     project.trl = st.select_slider("Select your TRL level", options=[r["level"] for r in TRL_TABLE], value=project.trl)
     row = next(r for r in TRL_TABLE if r["level"] == project.trl)
 
-    cols = st.columns([2,2])
-    with cols[0]:
-        st.metric("Selected TRL", project.trl)
-        st.write("**EU definition**")
-        st.info(row["definition"])
-    with cols[1]:
-        st.write("**Actors to engage**")
-        st.success(", ".join(row["actors"]))
+
+    st.metric("Selected TRL", project.trl)
+    st.write("**Actors to engage**")
+    st.success(", ".join(row["actors"]))
+    st.write("**EU definition**")
+    st.info(row["definition"])
+
+
 
     st.text_area("Notes on stakeholders / initial assumptions", key="trl_notes", value=project.scoping_notes, on_change=lambda: None)
     # update back when leaving step 1
@@ -689,10 +1089,6 @@ elif step.startswith("2"):
     st.subheader("Step 2 — Scoping and lifecycle")
     st.caption(
         "Define the core function, functional unit, and a lean lifecycle with up to 7 stages."
-    )
-    st.markdown(
-        "The subtitles below (Product / Construction / Use / End of Life) are **not** stages. "
-        "Add your **actual stages** under the relevant subtitle. Max total **7 stages**."
     )
 
     # ---------- Robust init for sections store ----------
@@ -830,67 +1226,65 @@ elif step.startswith("2"):
             sections[bucket].append(label)
         project.lifecycle_changed[label] = False
 
-    st.markdown("### Lifecycle modules")
-    st.caption("Toggle optional modules if they are relevant for your system.")
-    opt_cols = st.columns(2)
-    with opt_cols[0]:
-        inc_a0 = st.checkbox("Include A0 (UK only)", value=False, key="inc_a0")
-    with opt_cols[1]:
-        inc_d  = st.checkbox("Include D (beyond system boundary)", value=False, key="inc_d")
+    # st.markdown("### Lifecycle modules")
+    # st.caption("Toggle optional modules if they are relevant for your system.")
+    # opt_cols = st.columns(2)
+    # with opt_cols[0]:
+    #     inc_a0 = st.checkbox("Include A0 (UK only)", value=False, key="inc_a0")
+    # with opt_cols[1]:
+    #     inc_d  = st.checkbox("Include D (beyond system boundary)", value=False, key="inc_d")
 
-    label_a0 = CODE_TO_LABEL[OPTION_A0]
-    label_d  = CODE_TO_LABEL[OPTION_D]
+    # label_a0 = CODE_TO_LABEL[OPTION_A0]
+    # label_d  = CODE_TO_LABEL[OPTION_D]
 
-    if inc_a0:
-        _add_unique(CANONICAL_SECTIONS[0], OPTION_A0)
-    else:
-        if label_a0 in sections[CANONICAL_SECTIONS[0]]:
-            sections[CANONICAL_SECTIONS[0]].remove(label_a0)
-            project.lifecycle_changed.pop(label_a0, None)
+    # if inc_a0:
+    #     _add_unique(CANONICAL_SECTIONS[0], OPTION_A0)
+    # else:
+    #     if label_a0 in sections[CANONICAL_SECTIONS[0]]:
+    #         sections[CANONICAL_SECTIONS[0]].remove(label_a0)
+    #         project.lifecycle_changed.pop(label_a0, None)
 
-    if inc_d:
-        _add_unique(CANONICAL_SECTIONS[3], OPTION_D)
-    else:
-        if label_d in sections[CANONICAL_SECTIONS[3]]:
-            sections[CANONICAL_SECTIONS[3]].remove(label_d)
-            project.lifecycle_changed.pop(label_d, None)
+    # if inc_d:
+    #     _add_unique(CANONICAL_SECTIONS[3], OPTION_D)
+    # else:
+    #     if label_d in sections[CANONICAL_SECTIONS[3]]:
+    #         sections[CANONICAL_SECTIONS[3]].remove(label_d)
+    #         project.lifecycle_changed.pop(label_d, None)
 
     st.markdown("---")
 
     # ---------- Scoping exercise (card-like, no HTML wrappers) ----------
-    st.markdown("### Scoping exercise (required)")
+    st.markdown("####  Scoping exercise (required)")
     st.caption(
-        "Define the **core function** and a **functional unit** before scoring. "
+        "Define the **reference product** and a **functional unit** before scoring. "
         "Prefer function-over-time, e.g. a product delivering performance over a given lifetime."
     )
 
-    PDF_PATH = pathlib.Path("scopingexercise.pdf")
-    sc1, sc2 = st.columns([2, 3])
-    with sc1:
-        try:
-            if PDF_PATH.exists():
-                with PDF_PATH.open("rb") as f:
-                    st.download_button(
-                        "📥 Download scoping help (PDF)",
-                        data=f.read(),
-                        file_name="scopingexercise.pdf",
-                        mime="application/pdf",
-                        use_container_width=True,
-                    )
-            else:
-                st.info("Place **scopingexercise.pdf** next to your app to enable the download.")
-        except Exception as e:
-            st.warning(f"Couldn’t load the PDF: {e}")
-    with sc2:
-        project.core_function = st.text_area(
-            "Core function (one sentence)",
-            value=project.core_function,
-            height=80,
-            placeholder=(
-                "e.g., The main function of the self-healing tire is to enable "
-                "100,000 km of safe travel with reduced maintenance."
-            ),
-        )
+    PDF_PATH = pathlib.Path("assets/scopingexercise.pdf")
+    try:
+        if PDF_PATH.exists():
+            with PDF_PATH.open("rb") as f:
+                st.download_button(
+                    "📥 Download scoping help (PDF)",
+                    data=f.read(),
+                    file_name="scopingexercise.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                )
+        else:
+            st.info("Place **scopingexercise.pdf** next to your app to enable the download.")
+    except Exception as e:
+        st.warning(f"Couldn’t load the PDF: {e}")
+
+    project.core_function = st.text_area(
+        "Describe the reference product",
+        value=project.core_function,
+        height=80,
+        placeholder=(
+            "e.g., the reference product is a state-of-the-art car tire that provides"
+            "100,000 km of safe travel with reduced maintenance."
+        ),
+    )
 
     # Functional unit + save
     if "fu_draft" not in st.session_state:
@@ -922,7 +1316,7 @@ elif step.startswith("2"):
     def total_count() -> int:
         return sum(len(v) for v in sections.values())
 
-    st.markdown("### Lifecycle stages")
+    st.markdown("#### Lifecycle stages")
     st.caption(
         "Aim for a lean description (max 7 stages in total). "
         "Tick **Will change?** for the stages most affected by your new material or technology."
@@ -1003,7 +1397,7 @@ elif step.startswith("2"):
 
     # ---------- Status & notes ----------
     st.markdown("---")
-    status_cols = st.columns([1, 2])
+    status_cols = st.columns([1, 3])
     with status_cols[0]:
         st.metric("Total stages", len(project.lifecycle_stages))
         if st.button("↺ Reset all stages", use_container_width=True):
@@ -1140,27 +1534,54 @@ elif step.startswith("4"):
                     col = cols[i % 3]
                     with col:
                         fs = project.grid.setdefault(stage, {}).setdefault(fname, FactorScore())
-                        # Select-slider including “I don’t know”
-                        current = fs.score if fs.score in (1, 2, 3, 4, 5) else "I don’t know"
-                        unknown_key = f"{stage}_{fname}_unknown"
-                        is_unknown_default = (fs.score is None)
-                        is_unknown = st.checkbox("I don’t know", value=is_unknown_default, key=unknown_key)
 
-                        # Slider: enabled only when not unknown
-                        # If previously unknown, show a neutral default (3) until the user picks a value.
+                        # Determine current state
+                        if fs.to_research:
+                            state_default = "Yet to be researched"
+                        elif fs.score is None:
+                            state_default = "I don’t know"
+                        else:
+                            state_default = "Scored"
+
+                        state_key = f"{stage}_{fname}_state"
+                        state = st.radio(
+                            "Status",
+                            ["Scored", "I don’t know", "Yet to be researched"],
+                            index=["Scored", "I don’t know", "Yet to be researched"].index(state_default),
+                            key=state_key,
+                            horizontal=True,
+                            label_visibility="collapsed",
+                        )
+
+                        disabled = state != "Scored"
                         current_val = 3 if fs.score is None else int(fs.score)
+
                         new_val = st.slider(
                             f"{fname} — score",
                             min_value=1,
                             max_value=5,
                             value=current_val,
                             key=f"{stage}_{fname}_score",
-                            disabled=is_unknown
+                            disabled=disabled,
                         )
 
                         # Persist back to the model
-                        fs.score = None if is_unknown else float(new_val)
-                        fs.note = st.text_area(f"Justification for {fname}", value=fs.note, key=f"{stage}_{fname}_note", height=80)
+                        if state == "Scored":
+                            fs.score = float(new_val)
+                            fs.to_research = False
+                        elif state == "I don’t know":
+                            fs.score = None
+                            fs.to_research = False
+                        else:  # "Yet to be researched"
+                            fs.score = None
+                            fs.to_research = True
+
+                        fs.note = st.text_area(
+                            f"Justification for {fname}",
+                            value=fs.note,
+                            key=f"{stage}_{fname}_note",
+                            height=80
+                        )
                         project.grid[stage][fname] = fs
     bottom_nav()
 
@@ -1210,6 +1631,13 @@ elif step.startswith("5"):
         }
     )
 
+    cat_avg = category_means(project, avg_factor)
+
+    st.markdown("#### Trade-offs at a glance")
+    st.caption("Petal length shows relative performance (1 = much worse, 3 = baseline, 5 = much better).")
+    st.plotly_chart(seed_flower_petal_chart(cat_avg), use_container_width=True)
+
+
     # --- Overview card ---
     st.markdown(
         """
@@ -1237,36 +1665,6 @@ elif step.startswith("5"):
     )
 
 
-    oc1, oc2 = st.columns([1, 2])
-
-    with oc1:
-        st.metric(
-            "Overall score",
-            overall if overall is not None else "n/a",
-            help="Average of stage means (1 = much better, 3 = equal, 5 = much worse).",
-        )
-
-    with oc2:
-        if valid_stage_avgs:
-            worst_stage, worst_val = min(
-                valid_stage_avgs.items(), key=lambda kv: kv[1]
-            )
-            best_stage, best_val = max(
-                valid_stage_avgs.items(), key=lambda kv: kv[1]
-            )
-            st.markdown(
-                f"**Quick read:** "
-                f"<span class='pill-small'>Best stage: {best_stage} ({best_val:.2f})</span>"
-                f"<span class='pill-small'>Worst stage: {worst_stage} ({worst_val:.2f})</span>",
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown("_No valid averages yet — check Step 4._")
-        st.markdown(
-            "Use the tabs below to explore scores by lifecycle stage and by factor."
-            "Then use the trade-offs section to discuss alternatives."
-        )
-    st.markdown("</div>", unsafe_allow_html=True)
 
     # --- Tabs: by stage / by factor ---
     tab_factor, tab_stage = st.tabs(["By factor", "By lifecycle stage"])
@@ -1280,20 +1678,23 @@ elif step.startswith("5"):
     )
 
     with tab_stage:
-        st.markdown("#### 📊 Average by lifecycle stage")
+        st.markdown("#### Average by lifecycle stage")
         st.caption("Scores vs baseline 3: left = better, right = worse.")
         fig1 = horizontal_delta_bar(stage_plot, "Average by lifecycle stage")
         st.plotly_chart(fig1, use_container_width=True)
-        st.markdown("##### Table: stage averages")
-        st.dataframe(stage_df, use_container_width=True)
+        with st.expander("Stage averages", expanded=False):
+            st.markdown("##### Table: stage averages")
+            st.dataframe(stage_df, use_container_width=True)
 
     with tab_factor:
-        st.markdown("#### 📈 Average by factor")
+        st.markdown("#### Average by factor")
         st.caption("Factor-level averages across all scored stages.")
         fig2 = horizontal_delta_bar(factor_plot, "Average by factor")
         st.plotly_chart(fig2, use_container_width=True)
-        st.markdown("##### Table: factor averages")
-        st.dataframe(factor_df, use_container_width=True)
+        with st.expander("Factor averages", expanded=False):
+            st.markdown("##### Table: factor averages")
+            st.dataframe(factor_df, use_container_width=True)
+
 
     # --- Details for best & worst stages (optional, in expander) ---
     with st.expander("Details for best & worst stages", expanded=False):
@@ -1307,7 +1708,7 @@ elif step.startswith("5"):
 
             st.markdown(
                 f"**🚩 Worst stage:** **{worst_stage}** "
-                f"(avg {worst_val:.2f} — {interp_label(worst_val)})"
+                f"This stage scores {interp_label(worst_val)}"
             )
             breakdown_worst = project.grid.get(worst_stage, {})
             if breakdown_worst:
@@ -1333,7 +1734,7 @@ elif step.startswith("5"):
 
             st.markdown(
                 f"**🏆 Best stage:** **{best_stage}** "
-                f"(avg {best_val:.2f} — {interp_label(best_val)})"
+                f"This stage scores {interp_label(best_val)}"
             )
             breakdown_best = project.grid.get(best_stage, {})
             if breakdown_best:
@@ -1357,8 +1758,30 @@ elif step.startswith("5"):
         else:
             st.info("No valid best/worst stage yet — check your scores in Step 4.")
 
+
+    col_1, col_2 = st.columns([1, 1])
+    with col_1:
+        st.markdown("#### Assumptions of the analysis")
+        if getattr(project, "assumptions", None):
+            for i, a in enumerate(project.assumptions, start=1):
+                st.markdown(f"{i}. {a}")
+        else:
+            st.caption("No assumptions recorded.")
+
+    with col_2:
+        to_research = collect_to_research(project)
+
+        st.markdown("#### Yet to be researched")
+        if to_research:
+            for stage, factors in to_research.items():
+                st.markdown(f"**{stage}**")
+                for f in factors:
+                    st.markdown(f"- {f}")
+        else:
+            st.caption("Nothing flagged as ‘yet to be researched’.")
+    
     # --- Trade-offs & what-if scenarios ---
-    st.markdown("### ♻️ Trade-offs & what-if scenarios")
+    st.markdown("##  Trade-offs & what-if scenarios")
 
     st.write(
         "Use this section to **turn the numbers into decisions**:\n\n"
@@ -1454,7 +1877,7 @@ elif step.startswith("5"):
 
                 for stg, fac_scores in project.scenario_scores.items():
                     if fac_scores:
-                        scenario_avg_stage[stg] = statistics.mean(fac_scores.values())
+                        scenario_avg_stage[stg] = round(statistics.mean(fac_scores.values()), 1)
 
                 # Overall scenario score based on all modified stages
                 scenario_overall_vals = [
@@ -1485,51 +1908,53 @@ elif step.startswith("5"):
                         scenario_factor_values.setdefault(fname, []).append(float(val))
 
                 scenario_avg_factor: Dict[str, float] = {
-                    f: statistics.mean(vals) for f, vals in scenario_factor_values.items()
+                    f: round(statistics.mean(vals), 1) for f, vals in scenario_factor_values.items()
                 }
 
-                # 4) Show metrics side-by-side
-                mc1, mc2, mc3 = st.columns(3)
-                with mc1:
-                    st.metric(
-                        "Current overall score",
-                        value=overall if overall is not None else "n/a",
-                    )
-                with mc2:
-                    delta_overall = None
-                    if overall is not None and not math.isnan(scenario_overall):
-                        delta_overall = round(scenario_overall - overall, 2)
-                    st.metric(
-                        "Scenario overall score",
-                        value=(
-                            "n/a"
-                            if math.isnan(scenario_overall)
-                            else round(scenario_overall, 2)
-                        ),
-                        delta=delta_overall,
-                        help=(
-                            "Uses scenario scores for all stages you have edited, "
-                            "baseline scores for the rest."
-                        ),
-                    )
-                with mc3:
-                    current_stage = avg_stage.get(stage_choice, float("nan"))
-                    delta_stage = None
-                    if not math.isnan(current_stage) and not math.isnan(
-                        scenario_stage_mean
-                    ):
-                        delta_stage = round(
-                            scenario_stage_mean - current_stage, 2
-                        )
-                    st.metric(
-                        f"{stage_choice} — avg scenario score",
-                        value=(
-                            "n/a"
-                            if math.isnan(scenario_stage_mean)
-                            else round(scenario_stage_mean, 2)
-                        ),
-                        delta=delta_stage,
-                    )
+##### This section commented out as we don't want to focus on numerical outcome #####
+
+                # # 4) Show metrics side-by-side
+                # mc1, mc2, mc3 = st.columns(3)
+                # with mc1:
+                #     st.metric(
+                #         "Current overall score",
+                #         value=overall if overall is not None else "n/a",
+                #     )
+                # with mc2:
+                #     delta_overall = None
+                #     if overall is not None and not math.isnan(scenario_overall):
+                #         delta_overall = round(scenario_overall - overall, 2)
+                #     st.metric(
+                #         "Scenario overall score",
+                #         value=(
+                #             "n/a"
+                #             if math.isnan(scenario_overall)
+                #             else round(scenario_overall, 2)
+                #         ),
+                #         delta=delta_overall,
+                #         help=(
+                #             "Uses scenario scores for all stages you have edited, "
+                #             "baseline scores for the rest."
+                #         ),
+                #     )
+                # with mc3:
+                #     current_stage = avg_stage.get(stage_choice, float("nan"))
+                #     delta_stage = None
+                #     if not math.isnan(current_stage) and not math.isnan(
+                #         scenario_stage_mean
+                #     ):
+                #         delta_stage = round(
+                #             scenario_stage_mean - current_stage, 2
+                #         )
+                #     st.metric(
+                #         f"{stage_choice} — avg scenario score",
+                #         value=(
+                #             "n/a"
+                #             if math.isnan(scenario_stage_mean)
+                #             else round(scenario_stage_mean, 2)
+                #         ),
+                #         delta=delta_stage,
+                #     )
 
                 # 5) Updated plots with all scenario changes applied
                 scenario_stage_df = pd.DataFrame(
@@ -1561,41 +1986,50 @@ elif step.startswith("5"):
                     "Average score",
                 ).rename(columns={"Factor": "Category"})
 
-                # ✅ NEW: tabs for scenario by factor / by stage
                 tab_s_factor, tab_s_stage = st.tabs(
                     ["Scenario by factor", "Scenario by lifecycle stage"]
                 )
 
+                baseline_stage_plot = to_plot_df(stage_df, "Lifecycle stage", "Average score").rename(
+                    columns={"Lifecycle stage": "Category"}
+                )
+                baseline_factor_plot = to_plot_df(factor_df, "Factor", "Average score").rename(
+                    columns={"Factor": "Category"}
+                )
+
                 with tab_s_stage:
-                    st.markdown("##### Scenario vs. current — by lifecycle stage")
-                    st.caption(
-                        "Bars use scenario scores for all stages you edited and baseline "
-                        "scores for the others."
-                    )
+                    st.markdown("##### Scenario vs baseline — by lifecycle stage")
+                    st.caption("Scenario is shown underneath; baseline is overlaid on top for direct trade-off comparison.")
                     st.plotly_chart(
-                        horizontal_delta_bar(
+                        overlay_delta_bars(
+                            baseline_stage_plot,
                             scenario_stage_plot,
-                            "Scenario average by lifecycle stage",
+                            "Scenario vs baseline — lifecycle stage",
                         ),
                         use_container_width=True,
                     )
-                    st.dataframe(scenario_stage_df, use_container_width=True)
 
                 with tab_s_factor:
-                    st.markdown("##### Scenario vs. current — by factor")
-                    st.caption(
-                        "Factor averages using scenario scores where you changed them, "
-                        "and baseline scores elsewhere."
-                    )
+                    st.markdown("##### Scenario vs baseline — by factor")
+                    st.caption("Scenario is shown underneath; baseline is overlaid on top for direct trade-off comparison.")
                     st.plotly_chart(
-                        horizontal_delta_bar(
+                        overlay_delta_bars(
+                            baseline_factor_plot,
                             scenario_factor_plot,
-                            "Scenario average by factor",
+                            "Scenario vs baseline — factors",
                         ),
                         use_container_width=True,
                     )
-                    st.dataframe(scenario_factor_df, use_container_width=True)
 
+        baseline_cat = category_means(project, avg_factor)
+        scenario_cat = category_means(project, scenario_avg_factor)
+
+        st.markdown("##### Trade-offs overlay (baseline on top)")
+        st.caption("Scenario petals are shown underneath; baseline petals and dots stay visible on top.")
+        st.plotly_chart(
+            seed_flower_overlay(baseline_cat, scenario_cat, color_by="baseline"),
+            use_container_width=True
+            )
 
 
     # ---------------- RIGHT: Trade-off notes + optional visual ----------------
@@ -1651,6 +2085,7 @@ elif step.startswith("5"):
         "project": project.name,
         "description": project.description,
         "trl": project.trl,
+        "assumptions": project.assumptions,
         "lifecycle_stages": project.lifecycle_stages,
         "lifecycle_changed": project.lifecycle_changed,
         "selected_factors": project.selected_factors,
@@ -1658,6 +2093,7 @@ elif step.startswith("5"):
             stage: {f: asdict(fs) for f, fs in fdict.items()}
             for stage, fdict in project.grid.items()
         },
+        "to_research": collect_to_research(project),
         "averages": {
             "by_stage": avg_stage,
             "by_factor": avg_factor,
@@ -1709,6 +2145,16 @@ elif step.startswith("5"):
                 f"**{cat}:** " + ", ".join(project.selected_factors.get(cat, []))
             )
         lines.append("")
+        lines.append("")
+        lines.append("## Yet to be researched")
+        tr = collect_to_research(project)
+        if tr:
+            for stage, factors in tr.items():
+                lines.append(f"### {stage}")
+                for f in factors:
+                    lines.append(f"- {f}")
+        else:
+            lines.append("_None flagged._")
         lines.append("## Scores")
         lines.append(
             f"- **Overall score:** {overall if overall is not None else 'n/a'}"
@@ -1765,6 +2211,13 @@ elif step.startswith("5"):
         lines.append(
             "_Score guide — 1: Much Better • 2: Better • 3: Equal • 4: Worse • 5: Much Worse._"
         )
+        lines.append("")
+        lines.append("## Assumptions")
+        if getattr(project, "assumptions", None):
+            for a in project.assumptions:
+                lines.append(f"- {a}")
+        else:
+            lines.append("_None recorded._")
         return "\n".join(lines)
 
     with c_md:
