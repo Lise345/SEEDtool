@@ -792,7 +792,11 @@ def seed_flower_overlay(baseline_cat_avg: dict, scenario_cat_avg: dict,
                 tickmode="array",
                 tickvals=[theta_centers[c] for c in cats],
                 ticktext=cats,
-                tickfont=dict(size=17, color="black", family="Arial Black, Arial, sans-serif"),
+                tickfont=dict(
+                    size=16,          # ← make bigger
+                    color="black",    # ← make black
+                    family="Arial, sans-serif",  # optional
+                    ),
                 ticklabelstep=1,
                 ticklen=8,
                 rotation=90,
