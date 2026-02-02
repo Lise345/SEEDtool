@@ -793,8 +793,8 @@ def seed_flower_overlay(baseline_cat_avg: dict, scenario_cat_avg: dict,
                 tickvals=[theta_centers[c] for c in cats],
                 ticktext=cats,
                 tickfont=dict(
-                    size=16,          # ← make bigger
-                    color="black",    # ← make black
+                    size=16,        
+                    color="black",    
                     family="Arial, sans-serif",  # optional
                     ),
                 ticklabelstep=1,
@@ -902,8 +902,8 @@ def seed_flower_petal_chart(category_avg: dict, title=""):
                 tickvals=[theta_centers[c] for c in cats],
                 ticktext=cats,
                 tickfont=dict(
-                    size=16,          # ← make bigger
-                    color="black",    # ← make black
+                    size=16,      
+                    color="black",   
                     family="Arial, sans-serif",  # optional
                     ),
                 rotation=90,
