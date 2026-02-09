@@ -445,7 +445,7 @@ def render_landing():
     with cc6:
         st.markdown("##### Example project")
         with st.expander("Download example project file"):
-            example_path = pathlib.Path("recyclable_windmill_blades.json")
+            example_path = pathlib.Path("assets/recyclable_windmill_blades.json")
             if example_path.exists():
                 with open(example_path, "rb") as f:
                     st.download_button(
